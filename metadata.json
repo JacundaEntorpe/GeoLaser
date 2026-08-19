@@ -1,0 +1,6 @@
+{
+  "name": "Controle Laser GPS - Paraná",
+  "description": "Painel de controle IoT para ponteiro laser motorizado Pan/Tilt com mapa tátil do Paraná.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
