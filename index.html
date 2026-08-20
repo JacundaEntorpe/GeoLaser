@@ -79,6 +79,7 @@
             <section class="card map-container-card">
                 <div id="mapa" onclick="cliqueMapa(event)">
                     <div class="radar-sweep"></div>
+                    <svg id="contorno-mapa" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
                     <div id="laser-pointer" class="map-point"></div>
                     
                     <div style="position:absolute; bottom:20px; left:20px; font-family:var(--font-mono); font-size:10px; color:rgba(255,255,255,0.2); pointer-events:none;">
@@ -209,12 +210,74 @@
             });
         }
 
+        // ---------- PROJEÇÃO DO CONTORNO NO RADAR ----------
+        // A malha é a mesma que a tela de calibração desenha no mapa real.
+        // Aqui cada vértice passa por coordParaPassos (a calibração) e depois
+        // por passosParaPercent (a orientação da mesa), então o contorno aparece
+        // exatamente onde a máquina acredita que ele está.
+        const malhasEmCache = {};
+
+        function obterMalha(idMapa) {
+            if (malhasEmCache[idMapa]) return Promise.resolve(malhasEmCache[idMapa]);
+            const def = MAPAS[idMapa];
+            if (!def) return Promise.reject(new Error('mapa desconhecido'));
+            return fetch(def.malha)
+                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(g => { malhasEmCache[idMapa] = g; return g; });
+        }
+
+        // GeoJSON traz Polygon ou MultiPolygon; os dois viram uma lista de anéis.
+        function anelsDaGeometria(geom) {
+            if (!geom) return [];
+            if (geom.type === 'Polygon') return geom.coordinates;
+            if (geom.type === 'MultiPolygon') {
+                return geom.coordinates.reduce((acc, poly) => acc.concat(poly), []);
+            }
+            return [];
+        }
+
+        function projetarContorno() {
+            const svg = document.getElementById('contorno-mapa');
+            const t = calcularTransformacao();
+            const q = t ? qualidadeCalibracao() : null;
+
+            // Calibração instável projetaria um contorno gigante e sem sentido;
+            // melhor não desenhar nada do que desenhar uma mentira convincente.
+            const instavel = q && q.tipo === 'eixos' &&
+                             (q.ampX > AMPLIFICACAO_MAXIMA || q.ampY > AMPLIFICACAO_MAXIMA);
+
+            if (!t || instavel) { svg.innerHTML = ''; return; }
+
+            obterMalha(mapaAtivo).then(geo => {
+                const partes = [];
+                (geo.features || []).forEach(ft => {
+                    anelsDaGeometria(ft.geometry).forEach(anel => {
+                        const pts = [];
+                        for (const par of anel) {
+                            const p = coordParaPassos(par[1], par[0]);   // [lon, lat]
+                            if (!p) continue;
+                            const pc = passosParaPercent(p.x, p.y);
+                            pts.push(pc.x.toFixed(2) + ',' + pc.y.toFixed(2));
+                        }
+                        if (pts.length > 2) {
+                            partes.push('<polygon points="' + pts.join(' ') + '"/>');
+                        }
+                    });
+                });
+                svg.innerHTML = partes.join('');
+            }).catch(err => {
+                console.warn('Contorno não projetado:', err);
+                svg.innerHTML = '';
+            });
+        }
+
         function atualizarAvisoCalibracao() {
             const el = document.getElementById('aviso-calib');
             const t = calcularTransformacao();
+            projetarContorno();
             if (t) {
                 el.className = 'aviso-calib ok';
-                el.innerText = 'Calibrado com ' + t.pontos + ' pontos — pontos salvos usam coordenada real.';
+                el.innerText = 'Calibrado com ' + t.pontos + ' pontos — contorno do mapa projetado no radar.';
             } else {
                 el.className = 'aviso-calib pendente';
                 el.innerText = 'Sem calibração para este mapa — pontos salvos guardam só os passos.';
@@ -235,17 +298,10 @@
                 ? 'Fora do curso configurado (X 0-' + PASSOS_MAX_X + ', Y 0-' + PASSOS_MAX_Y + ')'
                 : 'X: ' + posicaoXAtual + '   Y: ' + posicaoYAtual;
 
-            // Converte os passos para percentagem
-            let percentX = (posicaoXAtual / PASSOS_MAX_X) * 100;
-            let percentY = (posicaoYAtual / PASSOS_MAX_Y) * 100;
-            
-            // --- ORIENTAÇÃO --- (definida em config.js, compartilhada com o clique)
-            if (INVERTER_X) percentX = 100 - percentX;
-            if (INVERTER_Y) percentY = 100 - percentY;
-            
-            // Impede que a bolinha saia visualmente da div
-            percentX = Math.max(0, Math.min(100, percentX));
-            percentY = Math.max(0, Math.min(100, percentY));
+            // Mesma conversão usada para projetar o contorno do mapa (config.js)
+            const pos = passosParaPercent(posicaoXAtual, posicaoYAtual);
+            let percentX = Math.max(0, Math.min(100, pos.x));
+            let percentY = Math.max(0, Math.min(100, pos.y));
 
             // O clamp mantém a bolinha inteira dentro da borda: em 0% e 100% o
             // centro dela cai exatamente sobre a linha e metade era cortada.
