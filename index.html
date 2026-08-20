@@ -5,74 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Controle de Eixos - CNC/Laser</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <style>
-        /* MANTIDO EXATAMENTE O SEU CSS ORIGINAL */
-        :root {
-            --bg: #121212;
-            --card: #1e1e1e;
-            --card-alt: #2d2d2d;
-            --neon-green: #00ff88;
-            --neon-red: #ff4444;
-            --neon-blue: #00d4ff;
-            --text-main: #e0e0e0;
-            --text-dim: #888;
-            --font-sans: 'Inter', -apple-system, sans-serif;
-            --font-mono: 'JetBrains Mono', monospace;
-            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: var(--font-sans); background-color: var(--bg); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; }
-        
-        header { height: 80px; padding: 0 40px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #333; background: var(--card); }
-        header h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; margin: 0; text-transform: uppercase; }
-        .status-badge { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-dim); font-family: var(--font-mono); }
-        .status-dot { width: 8px; height: 8px; background: var(--neon-green); border-radius: 50%; box-shadow: 0 0 10px var(--neon-green); animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }
-
-        .dashboard-grid { display: grid; grid-template-columns: 320px 1fr 320px; gap: 20px; padding: 20px; flex: 1; max-width: 1440px; margin: 0 auto; width: 100%; }
-        .card { background: var(--card); border-radius: 16px; padding: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; transition: var(--transition); }
-        .card:hover { border-color: rgba(255,255,255,0.1); transform: translateY(-2px); }
-        .card-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); margin-bottom: 20px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-        .card-title::before { content: ''; width: 3px; height: 12px; background: var(--neon-blue); border-radius: 2px; }
-
-        .map-container-card { grid-column: 2; padding: 0 !important; background: var(--card-alt) !important; overflow: hidden; position: relative; border: 2px solid #333 !important; display: flex; align-items: center; justify-content: center; }
-        #mapa { width: 100%; height: 100%; background-image: radial-gradient(circle, rgba(0,212,255,0.05) 1px, transparent 1px); background-size: 30px 30px; cursor: crosshair; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden;}
-        #mapa::after { content: ''; position: absolute; top: 50%; left: 50%; width: 100%; height: 1px; background: rgba(0,212,255,0.15); transform: translate(-50%, -50%); }
-        #mapa::before { content: ''; position: absolute; top: 50%; left: 50%; width: 1px; height: 100%; background: rgba(0,212,255,0.15); transform: translate(-50%, -50%); }
-        .radar-sweep { position: absolute; top: -10; left: -10; width: 200%; height: 200%; background: conic-gradient(from 0deg at 50% 50%, rgba(0, 212, 255, 0.2) 0deg, transparent 60deg, transparent 360deg); border-radius: 50%; animation: sweep 4s linear infinite; }
-        @keyframes sweep { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
-        .map-point { position: absolute; width: 12px; height: 12px; background: var(--neon-red); border-radius: 50%; box-shadow: 0 0 15px var(--neon-red); transform: translate(-50%, -50%); z-index: 10; transition: all 0.3s ease; }
-
-        .control-group { margin-bottom: 24px; }
-        .control-label { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 12px; color: var(--text-main); }
-        .control-label span:last-child { color: var(--neon-blue); font-family: var(--font-mono); background: rgba(0, 212, 255, 0.1); padding: 2px 8px; border-radius: 4px; }
-
-        select, input[type="text"] { width: 100%; background: #121212; border: 1px solid #444; color: white; padding: 14px; border-radius: 12px; font-size: 14px; outline: none; cursor: pointer; transition: var(--transition); }
-        select:focus, input[type="text"]:focus { border-color: var(--neon-blue); }
-
-        .btn-laser { background: linear-gradient(135deg, #ff4444, #cc0000); color: white; box-shadow: 0 4px 15px rgba(255,68,68,0.3); width: 100%; padding: 16px; border-radius: 12px; border: none; font-weight: 700; text-transform: uppercase; cursor: pointer; transition: all 0.2s ease; margin-top: auto; }
-        .btn-laser:hover { filter: brightness(1.2); transform: translateY(-2px); }
-        .btn-save { background: transparent; border: 1px solid var(--neon-green); color: var(--neon-green); width: 100%; padding: 14px; border-radius: 12px; font-weight: 700; text-transform: uppercase; cursor: pointer; transition: all 0.2s ease; }
-        .btn-save:hover { background: var(--neon-green); color: black; box-shadow: 0 0 20px rgba(0, 255, 136, 0.3); }
-
-        .right-column { display: flex; flex-direction: column; gap: 20px; }
-        .info-text { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-top: auto; }
-
-        #login-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column; }
-        .login-box { background: var(--card); padding: 40px; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.2); width: 100%; max-width: 350px; text-align: center; }
-        .login-box input { width: 100%; background: #121212; border: 1px solid #444; color: white; padding: 14px; border-radius: 8px; margin-bottom: 15px; outline: none; }
-        #app-content { display: none; flex-direction: column; min-height: 100vh; }
-
-        /* NOVO: Estilo para o D-Pad de controle manual */
-        .d-pad { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px; }
-        .d-btn { background: #333; color: white; border: none; padding: 15px 0; border-radius: 8px; cursor: pointer; font-weight: bold; transition: var(--transition); }
-        .d-btn:hover { background: var(--neon-blue); color: black; box-shadow: 0 0 15px rgba(0,212,255,0.4); }
-        .d-vazio { visibility: hidden; }
-
-        @media (max-width: 1100px) { .dashboard-grid { grid-template-columns: 1fr 1fr; } .map-container-card { grid-column: span 2; height: 400px; order: -1; } }
-        @media (max-width: 768px) { header { padding: 0 20px; height: 70px; } header h1 { font-size: 18px; } .dashboard-grid { grid-template-columns: 1fr; } .map-container-card { grid-column: span 1; height: 300px; } }
-    </style>
+    <link rel="stylesheet" href="estilo.css">
 </head>
 <body>
     <div id="login-screen">
@@ -90,13 +23,16 @@
             <div>
                 <h1>CONTROLE MÁQUINA <span style="color:var(--neon-blue)">— CNC/LASER</span></h1>
             </div>
-            <div class="status-badge">
-                <div class="status-dot" id="status-dot"></div>
-                <span id="st">AGUARDANDO...</span>
+            <div class="header-right">
+                <a class="nav-link" href="botao.html">Calibração Geo →</a>
+                <div class="status-badge">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span id="st">AGUARDANDO...</span>
+                </div>
             </div>
         </header>
 
-        <main class="dashboard-grid">
+        <main class="dashboard-grid grid-painel">
             
             <section class="card">
                 <h2 class="card-title">Posição Atual & Controles</h2>
@@ -176,22 +112,9 @@
     
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="config.js"></script>
 
     <script>
-        // CONFIGURAÇÕES DA SUA MÁQUINA (Ajuste para o limite de passos físicos da sua mesa)
-        const PASSOS_MAX_X = 1160; 
-        const PASSOS_MAX_Y = 1160;
-
-        // CREDENCIAIS DO FIREBASE (projeto: geolaser)
-        const firebaseConfig = {
-            apiKey: "AIzaSyCKJf9qc_QdDnqiIjtgXyLk4M-N95DmG7w",
-            authDomain: "geolaser.firebaseapp.com",
-            databaseURL: "https://geolaser-default-rtdb.firebaseio.com",
-            projectId: "geolaser",
-            storageBucket: "geolaser.firebasestorage.app",
-            messagingSenderId: "430011452547",
-            appId: "1:430011452547:web:5a6f4b1b7b0a80ddbc1fb6"
-        };
 
         let database;
         let posicaoXAtual = 0;
@@ -256,7 +179,17 @@
         // Move a bolinha vermelha no mapa com base na coordenada real do motor
         function atualizarPontoNoMapa() {
             const pointer = document.getElementById('laser-pointer');
-            
+
+            // A máquina pode reportar uma posição fora do curso configurado.
+            // Antes isso era apenas cortado e a bolinha ficava grudada no canto,
+            // parecendo que o mapa é que estava errado. Agora ela fica âmbar.
+            const foraDoCurso = posicaoXAtual < 0 || posicaoXAtual > PASSOS_MAX_X ||
+                                posicaoYAtual < 0 || posicaoYAtual > PASSOS_MAX_Y;
+            pointer.classList.toggle('fora', foraDoCurso);
+            pointer.title = foraDoCurso
+                ? 'Fora do curso configurado (X 0-' + PASSOS_MAX_X + ', Y 0-' + PASSOS_MAX_Y + ')'
+                : 'X: ' + posicaoXAtual + '   Y: ' + posicaoYAtual;
+
             // Converte os passos para percentagem
             let percentX = (posicaoXAtual / PASSOS_MAX_X) * 100;
             let percentY = (posicaoYAtual / PASSOS_MAX_Y) * 100;
@@ -271,9 +204,12 @@
             // Impede que a bolinha saia visualmente da div
             percentX = Math.max(0, Math.min(100, percentX));
             percentY = Math.max(0, Math.min(100, percentY));
-        
-            pointer.style.left = percentX + '%';
-            pointer.style.top = percentY + '%';
+
+            // O clamp mantém a bolinha inteira dentro da borda: em 0% e 100% o
+            // centro dela cai exatamente sobre a linha e metade era cortada.
+            const raio = 6; // metade dos 12px de .map-point
+            pointer.style.left = 'clamp(' + raio + 'px, ' + percentX + '%, calc(100% - ' + raio + 'px))';
+            pointer.style.top  = 'clamp(' + raio + 'px, ' + percentY + '%, calc(100% - ' + raio + 'px))';
         }
         
         function definirPasso(valor) {
@@ -293,7 +229,10 @@
             let novoAlvo = posBase + (quantidade * direcao);
             
             // --- PROTEÇÃO NO SITE ---
-            let limiteMaximo = (eixo === 'X') ? 1160 : 2000; // 1160 no X, 2000 no Y
+            // Usa o mesmo limite que o mapa desenha (config.js). Antes o Y aqui
+            // era 2000 enquanto o mapa desenhava até 1160: dava para mandar a
+            // máquina além da borda e a bolinha ficava grudada no canto.
+            let limiteMaximo = (eixo === 'X') ? PASSOS_MAX_X : PASSOS_MAX_Y;
             
             if (novoAlvo > limiteMaximo) {
                 novoAlvo = limiteMaximo;
