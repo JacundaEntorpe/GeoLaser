@@ -62,6 +62,17 @@ const PASSOS_MAX_Y = 1160;
 const INVERTER_X = false;
 const INVERTER_Y = true;
 
+// Converte passos do motor para posição percentual dentro do radar.
+// Fonte única: a bolinha do laser e o contorno projetado do mapa passam os dois
+// por aqui. Ter duas cópias desta conta já causou o bug do eixo X espelhado.
+function passosParaPercent(px, py) {
+    let x = (px / PASSOS_MAX_X) * 100;
+    let y = (py / PASSOS_MAX_Y) * 100;
+    if (INVERTER_X) x = 100 - x;
+    if (INVERTER_Y) y = 100 - y;
+    return { x: x, y: y };
+}
+
 // Faz o desenho do mapa ter a mesma proporção da mesa, para que um
 // deslocamento igual em X e em Y apareça igual na tela.
 document.documentElement.style.setProperty(
