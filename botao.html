@@ -158,7 +158,8 @@
         let refCalibracao = null;
         let pontoProvisorio = null;   // {lat, lon} clicado mas ainda não confirmado
         let destinoProvisorio = null; // {lat, lon} clicado depois de calibrado
-        let etapa = 'p1-escolher';    // p1-escolher | p1-posicionar | p2-escolher | p2-posicionar | pronto
+        // p{1,2,3}-escolher | p{1,2,3}-posicionar | pronto
+        let etapa = 'p1-escolher';
         const marcadores = { provisorio: null, p1: null, p2: null, p3: null, laser: null };
 
         // ============ LOGIN ============
@@ -285,7 +286,10 @@
         function aoClicarNoMapa(e) {
             const lat = e.latlng.lat, lon = e.latlng.lng;
 
-            if (etapa === 'p1-escolher' || etapa === 'p2-escolher') {
+            // Mesmo predicado que renderEtapa usa. Listar as etapas na mão aqui
+            // foi o que deixou o 3º ponto sem responder ao clique: 'p3-escolher'
+            // não estava na lista e caía no else, que só trata 'pronto'.
+            if (etapa.endsWith('-escolher')) {
                 pontoProvisorio = { lat: lat, lon: lon };
                 desenharProvisorio();
                 renderEtapa();
@@ -430,11 +434,35 @@
                 inst.innerHTML = '<b>Destino escolhido</b><br><span class="mono">' +
                     destinoProvisorio.lat.toFixed(6) + ', ' + destinoProvisorio.lon.toFixed(6) + '</span><br>' +
                     'Convertido: <span class="mono">X ' + p.x + ' / Y ' + p.y + '</span>' +
-                    (fora ? '<br><span style="color:var(--neon-red)">Fora do curso da máquina (X 0–' + PASSOS_MAX_X + ', Y 0–' + PASSOS_MAX_Y + ').</span>' : '');
+                    (fora ? '<br><span style="color:var(--neon-red)">Fora do curso da máquina (X 0–' + PASSOS_MAX_X + ', Y 0–' + PASSOS_MAX_Y + ').</span>' + causaProvavel(p) : '');
                 acoes.innerHTML =
                     (fora ? '' : '<button class="btn btn-primary" onclick="moverParaDestino()">MOVER MÁQUINA PARA CÁ</button>') +
                     botaoTerceiro + botaoRefazer;
             }
+        }
+
+        // Um valor muitas vezes maior que o curso não é "um pouco fora do mapa":
+        // é sintoma de escala mal condicionada. Diz isso em vez de deixar o
+        // usuário achar que clicou longe demais.
+        function causaProvavel(p) {
+            const absurdoX = Math.abs(p.x) > PASSOS_MAX_X * 5;
+            const absurdoY = Math.abs(p.y) > PASSOS_MAX_Y * 5;
+            if (!absurdoX && !absurdoY) return '';
+
+            const q = qualidadeCalibracao();
+            const eixo = absurdoY ? 'Y' : 'X';
+            let txt = '<br><br><b>Valor absurdo, não é só "fora do mapa".</b> ';
+            if (q && q.tipo === 'eixos') {
+                const sep = (eixo === 'Y') ? q.sepY : q.sepX;
+                txt += 'Seus dois pontos de referência diferem em apenas <b>' + sep +
+                       ' passos</b> no eixo ' + eixo + ', então a escala desse eixo foi ' +
+                       'extrapolada de uma medida curta demais. Regrave um dos pontos bem ' +
+                       'afastado no eixo ' + eixo + '.';
+            } else {
+                txt += 'A escala do eixo ' + eixo + ' está mal condicionada — os pontos de ' +
+                       'referência estão próximos demais nesse eixo.';
+            }
+            return '<span style="color:var(--neon-amber)">' + txt + '</span>';
         }
 
         function confirmarEscolha() {
@@ -633,17 +661,33 @@
                     'você se afasta das referências. Adicione o 3º ponto para medir e corrigir.</div>';
             }
 
-            const seps = [];
-            for (let i = 0; i < usados.length; i++) {
-                for (let j = i + 1; j < usados.length; j++) {
-                    seps.push(Math.hypot(usados[j].passosX - usados[i].passosX,
-                                         usados[j].passosY - usados[i].passosY));
+            // Separação por eixo, sempre visível: é o número que explica na hora
+            // quando uma conversão sai absurda.
+            const q = qualidadeCalibracao();
+            if (q && q.tipo === 'eixos') {
+                html += '<div class="escala-linha"><span>Separação em X</span><span>' + q.sepX + ' passos</span></div>';
+                html += '<div class="escala-linha"><span>Separação em Y</span><span>' + q.sepY + ' passos</span></div>';
+
+                const ruins = [];
+                if (q.ampX > AMPLIFICACAO_MAXIMA) ruins.push({ eixo: 'X', sep: q.sepX, amp: q.ampX });
+                if (q.ampY > AMPLIFICACAO_MAXIMA) ruins.push({ eixo: 'Y', sep: q.sepY, amp: q.ampY });
+
+                for (const r of ruins) {
+                    html += '<div class="aviso aviso-erro" style="margin-top:16px;">' +
+                        '<b>Escala de ' + r.eixo + ' não é confiável.</b><br>' +
+                        'Os dois pontos diferem em apenas <b>' + r.sep + ' passos</b> nesse eixo, ' +
+                        'mas a mesa tem ' + (r.eixo === 'X' ? PASSOS_MAX_X : PASSOS_MAX_Y) + '. ' +
+                        'Cada passo errado ao mirar vira <b>' + Math.round(r.amp) + ' passos</b> de erro na ponta — ' +
+                        'é isso que faz um destino converter para valores absurdos.<br><br>' +
+                        'Regrave um dos pontos bem afastado no eixo ' + r.eixo +
+                        (r.eixo === 'Y' ? ' (mais ao norte ou ao sul).' : ' (mais a leste ou a oeste).') +
+                        '</div>';
                 }
-            }
-            if (Math.min.apply(null, seps) < 70) {
-                html += '<div class="aviso aviso-alerta" style="margin-top:16px;"><b>Pontos muito próximos.</b> ' +
-                    'O par mais próximo está a ' + Math.round(Math.min.apply(null, seps)) + ' passos. ' +
-                    'Qualquer imprecisão de mira vira erro grande na escala inteira.</div>';
+            } else if (q && q.tipo === 'area' && q.fracao < 0.03) {
+                html += '<div class="aviso aviso-erro" style="margin-top:16px;">' +
+                    '<b>Os três pontos formam um triângulo achatado.</b><br>' +
+                    'Ele cobre só ' + (q.fracao * 100).toFixed(1) + '% da área da mesa, ' +
+                    'o que deixa a transformação instável. Espalhe os pontos pelos cantos.</div>';
             }
 
             painel.innerHTML = html;
