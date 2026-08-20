@@ -15,6 +15,16 @@ export default defineConfig(({mode}) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      rollupOptions: {
+        // O Vite só empacota index.html por padrão. Sem declarar botao.html
+        // aqui ele nunca chega ao dist/ e a rota devolve 404 em produção.
+        input: {
+          painel: path.resolve(__dirname, 'index.html'),
+          botao: path.resolve(__dirname, 'botao.html'),
+        },
+      },
+    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
