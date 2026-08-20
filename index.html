@@ -194,12 +194,9 @@
             let percentX = (posicaoXAtual / PASSOS_MAX_X) * 100;
             let percentY = (posicaoYAtual / PASSOS_MAX_Y) * 100;
             
-            // --- LÓGICA DE INVERSÃO VISUAL ---
-            // Se o eixo X estiver invertido (andar para a esquerda em vez da direita), tire as barras da linha abaixo:
-            percentX = 100 - percentX; 
-        
-            // Se o eixo Y estiver invertido (andar para cima em vez de baixo), tire as barras da linha abaixo:
-            percentY = 100 - percentY; 
+            // --- ORIENTAÇÃO --- (definida em config.js, compartilhada com o clique)
+            if (INVERTER_X) percentX = 100 - percentX;
+            if (INVERTER_Y) percentY = 100 - percentY;
             
             // Impede que a bolinha saia visualmente da div
             percentX = Math.max(0, Math.min(100, percentX));
@@ -266,10 +263,10 @@
             let calcX = x / rect.width;
             let calcY = y / rect.height;
         
-            // --- LÓGICA DE INVERSÃO DO CLIQUE ---
-            // ATENÇÃO: Deixe aqui igual ao que deixou na bolinha vermelha!
-            calcX = 1 - calcX; // Inverte X
-            calcY = 1 - calcY; // Inverte Y
+            // --- ORIENTAÇÃO --- (mesmas constantes usadas para desenhar a bolinha,
+            // então as duas não têm mais como divergir)
+            if (INVERTER_X) calcX = 1 - calcX;
+            if (INVERTER_Y) calcY = 1 - calcY;
         
             // Multiplica pelos limites físicos
             let alvoX = Math.round(calcX * PASSOS_MAX_X);

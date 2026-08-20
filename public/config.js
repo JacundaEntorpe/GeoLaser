@@ -21,6 +21,18 @@ const firebaseConfig = {
 const PASSOS_MAX_X = 1160;
 const PASSOS_MAX_Y = 1160;
 
+// ---------- ORIENTAÇÃO DO DESENHO NO MAPA ----------
+// Com a máquina zerada (0,0) o laser fica no canto INFERIOR ESQUERDO da mesa
+// real. Traduzindo para a tela:
+//   X cresce da esquerda para a direita  -> NÃO inverte
+//   Y cresce de baixo para cima, mas em CSS "top" cresce para baixo -> inverte
+//
+// O desenho da bolinha e a leitura do clique leem estas mesmas constantes.
+// Se forem diferentes entre si, clicar no mapa manda o laser para o espelho
+// do ponto clicado — foi exatamente esse o bug do X.
+const INVERTER_X = false;
+const INVERTER_Y = true;
+
 // Faz o desenho do mapa ter a mesma proporção da mesa, para que um
 // deslocamento igual em X e em Y apareça igual na tela.
 document.documentElement.style.setProperty(
