@@ -1,0 +1,551 @@
+/* ============================================================
+   GeoLaser — tema da tela pública (index.html)
+
+   Nada aqui é compartilhado com estilo.css: aquele é o tema escuro
+   das telas internas de /dev, este é a interface do visitante, feita
+   para um tablet ao lado da máquina. Duas folhas separadas de
+   propósito — mexer no radar não pode mudar a cara pública.
+
+   Regras que guiaram o desenho:
+   - alvo de toque nunca menor que 56px, porque o dedo não é o mouse;
+   - contraste alto: o tablet fica sob luz de ambiente, não em um
+     quarto escuro como o painel de operação;
+   - nada de hover como única pista visual — em touch não existe hover.
+   ============================================================ */
+
+:root {
+    --mata: #1d5138;
+    --mata-fundo: #16402c;
+    --verde: #2f7d4f;
+    --verde-claro: #6fae7f;
+    --areia: #f4efe3;
+    --areia-2: #e7ddc9;
+    --papel: #fffdf7;
+    --texto: #26302a;
+    --texto-suave: #6d7a6f;
+    --terra: #a3703c;
+    --laser: #d93b1f;
+    --sombra: 0 2px 6px rgba(30, 45, 35, .08), 0 12px 28px rgba(30, 45, 35, .10);
+    --sombra-forte: 0 4px 10px rgba(30, 45, 35, .14), 0 18px 40px rgba(30, 45, 35, .16);
+    --raio: 18px;
+    --fonte: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --fonte-titulo: 'Bitter', Georgia, serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body { height: 100%; }
+
+body {
+    font-family: var(--fonte);
+    background: var(--areia);
+    color: var(--texto);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;              /* o scroll é interno, por painel */
+    overscroll-behavior: none;     /* evita o "puxar para atualizar" no tablet */
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- CABEÇALHO ---------- */
+.topo {
+    flex: 0 0 auto;
+    background: var(--mata);
+    color: #f2f7f0;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.marca {
+    font-family: var(--fonte-titulo);
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    line-height: 1;
+}
+.marca span { color: var(--verde-claro); }
+.marca small {
+    display: block;
+    font-family: var(--fonte);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #a9c9b2;
+    margin-top: 5px;
+}
+
+.estado {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #cfe3d4;
+    background: rgba(255, 255, 255, .08);
+    padding: 9px 16px;
+    border-radius: 999px;
+    text-align: right;
+}
+.ponto-estado {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--verde-claro);
+    flex: 0 0 auto;
+}
+.estado.ligando  .ponto-estado { background: #d8c56a; }
+.estado.problema .ponto-estado { background: var(--laser); }
+
+/* ---------- PALCO ---------- */
+.palco {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(390px, .85fr);
+    gap: 18px;
+    padding: 18px;
+    min-height: 0;                 /* deixa os filhos encolherem e rolarem */
+}
+
+/* ---------- MAPA ---------- */
+.mapa-caixa {
+    position: relative;
+    background: var(--papel);
+    border-radius: var(--raio);
+    box-shadow: var(--sombra);
+    overflow: hidden;
+    min-height: 0;
+}
+#mapa { width: 100%; height: 100%; background: var(--areia-2); }
+
+/* O Leaflet injeta a própria tipografia; alinha com a da página. */
+.leaflet-container { font-family: var(--fonte); }
+
+.legenda {
+    position: absolute;
+    left: 14px; bottom: 14px;
+    z-index: 500;
+    background: rgba(255, 253, 247, .94);
+    backdrop-filter: blur(4px);
+    border-radius: 12px;
+    padding: 10px 14px;
+    box-shadow: var(--sombra);
+    display: flex;
+    gap: 18px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--texto-suave);
+}
+.legenda i {
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 7px;
+    vertical-align: -1px;
+}
+.legenda .i-laser   { background: var(--laser); }
+.legenda .i-destino { background: var(--verde); }
+
+/* Marcadores desenhados em CSS: os PNGs padrão do Leaflet quebram
+   conforme o caminho do CDN e não combinariam com o tema. */
+.marca-laser, .marca-destino {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .35);
+}
+.marca-laser   { background: var(--laser); }
+.marca-destino { background: var(--verde); }
+
+/* O anel pulsante marca onde o feixe está agora. Respeita quem pediu
+   menos animação no sistema. */
+.marca-laser::after {
+    content: '';
+    position: absolute;
+    inset: -9px;
+    border-radius: 50%;
+    border: 2px solid var(--laser);
+    animation: pulso 1.8s ease-out infinite;
+}
+@keyframes pulso {
+    0%   { transform: scale(.55); opacity: .9; }
+    100% { transform: scale(1.5); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .marca-laser::after { animation: none; opacity: .5; }
+}
+
+/* ---------- LATERAL ---------- */
+.lateral {
+    background: var(--papel);
+    border-radius: var(--raio);
+    box-shadow: var(--sombra);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.vista {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1 1 auto;
+}
+.vista[hidden] { display: none; }
+
+/* ---------- BUSCA ---------- */
+.busca {
+    flex: 0 0 auto;
+    padding: 18px 18px 12px;
+    position: relative;
+}
+.campo-busca {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--areia);
+    border: 2px solid transparent;
+    border-radius: 14px;
+    padding: 0 16px;
+    transition: border-color .15s, background .15s;
+}
+.campo-busca:focus-within {
+    border-color: var(--verde);
+    background: #fff;
+}
+.campo-busca svg { flex: 0 0 auto; color: var(--texto-suave); }
+.campo-busca input {
+    flex: 1 1 auto;
+    border: 0;
+    background: none;
+    outline: none;
+    font-family: inherit;
+    font-size: 17px;
+    color: var(--texto);
+    height: 58px;
+}
+.campo-busca input::placeholder { color: #9aa79c; }
+.limpar-busca {
+    flex: 0 0 auto;
+    width: 38px; height: 38px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--areia-2);
+    color: var(--texto-suave);
+    font-size: 19px;
+    line-height: 1;
+    cursor: pointer;
+}
+.limpar-busca[hidden] { display: none; }
+
+/* Sugestões flutuam sobre o conteúdo: empurrar a grade para baixo a cada
+   tecla faria a lista inteira pular embaixo do dedo. */
+.sugestoes {
+    position: absolute;
+    left: 18px; right: 18px; top: 82px;
+    z-index: 30;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: var(--sombra-forte);
+    overflow: hidden auto;
+    max-height: min(56vh, 460px);
+}
+.sugestoes[hidden] { display: none; }
+
+.sugestao {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 12px 16px;
+    border: 0;
+    border-bottom: 1px solid var(--areia);
+    background: none;
+    text-align: left;
+    font-family: inherit;
+    font-size: 15.5px;
+    color: var(--texto);
+    cursor: pointer;
+    min-height: 66px;
+}
+.sugestao:last-child { border-bottom: 0; }
+.sugestao:active { background: var(--areia); }
+.sugestao .miniatura {
+    flex: 0 0 auto;
+    width: 46px; height: 46px;
+    border-radius: 11px;
+    background-size: cover;
+    background-position: center;
+    display: grid;
+    place-items: center;
+}
+.sugestao .miniatura svg { width: 22px; height: 22px; color: #fff; opacity: .95; }
+.sugestao b { display: block; font-weight: 600; }
+.sugestao small {
+    display: block;
+    color: var(--texto-suave);
+    font-size: 12.5px;
+    margin-top: 2px;
+}
+
+.grupo-sugestao {
+    padding: 10px 16px 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--texto-suave);
+    background: var(--areia);
+}
+.sem-resultado {
+    padding: 22px 18px;
+    color: var(--texto-suave);
+    font-size: 14.5px;
+    line-height: 1.55;
+}
+
+/* ---------- FILTROS ---------- */
+.filtros {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 9px;
+    padding: 4px 18px 14px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.filtros::-webkit-scrollbar { display: none; }
+.chip {
+    flex: 0 0 auto;
+    border: 2px solid var(--areia-2);
+    background: none;
+    border-radius: 999px;
+    padding: 0 18px;
+    height: 44px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--texto-suave);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.chip[aria-pressed="true"] {
+    background: var(--mata);
+    border-color: var(--mata);
+    color: #fff;
+}
+
+/* ---------- BLOCOS ---------- */
+.blocos {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+    gap: 14px;
+    padding: 0 18px 18px;
+    align-content: start;
+}
+
+.bloco {
+    position: relative;
+    display: block;
+    width: 100%;
+    border: 0;
+    border-radius: 15px;
+    overflow: hidden;
+
+    /* Proporção 4:3 por padding percentual, e NÃO por aspect-ratio.
+       Com a largura vindo de uma coluna 1fr, o aspect-ratio não entra no
+       cálculo da altura da linha da grade: as linhas colapsavam para ~55px
+       enquanto o botão desenhava 171px, e um bloco cobria o nome do outro.
+       O padding percentual resolve contra a largura da coluna, que já é
+       definida, então a linha nasce com a altura certa.
+       Ao mexer aqui, confira a grade com mais de uma linha. */
+    height: 0;
+    padding: 0 0 75%;
+    background: var(--verde);
+    background-size: cover;
+    background-position: center;
+    cursor: pointer;
+    box-shadow: var(--sombra);
+    text-align: left;
+    font-family: inherit;
+    transition: transform .12s ease;
+}
+.bloco:active { transform: scale(.97); }
+.bloco[aria-pressed="true"] { outline: 4px solid var(--verde); outline-offset: 2px; }
+
+/* Sem a tarja o nome branco some sobre a parte clara da foto. */
+.bloco .tarja {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 26px 12px 11px;
+    background: linear-gradient(transparent, rgba(18, 32, 24, .88));
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.25;
+}
+.bloco .marca-agua {
+    position: absolute;
+    right: 8px; top: 8px;
+    width: 34px; height: 34px;
+    color: #fff;
+    opacity: .32;
+}
+.bloco.sem-foto .marca-agua {
+    /* Sem fotografia o ícone deixa de ser enfeite e vira a ilustração
+       do bloco: é o que diferencia uma caverna de uma praça à distância. */
+    right: auto; top: auto;
+    left: 50%; top: 42%;
+    transform: translate(-50%, -50%);
+    width: 52px; height: 52px;
+    opacity: .5;
+}
+
+/* ---------- FICHA DO LUGAR ---------- */
+.ficha {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.ficha-topo {
+    position: relative;
+    height: 230px;
+    background: var(--verde);
+    background-size: cover;
+    background-position: center;
+}
+.ficha-topo .marca-agua {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 76px; height: 76px;
+    color: #fff;
+    opacity: .45;
+}
+.voltar {
+    position: absolute;
+    left: 14px; top: 14px;
+    z-index: 5;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    padding: 0 20px 0 16px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255, 253, 247, .95);
+    color: var(--texto);
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--sombra);
+}
+
+.ficha-corpo { padding: 20px 22px 26px; }
+.etiqueta {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 30px;
+    padding: 0 13px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+    color: #fff;
+}
+.ficha-corpo h2 {
+    font-family: var(--fonte-titulo);
+    font-size: 27px;
+    line-height: 1.2;
+    margin: 12px 0 10px;
+}
+.ficha-corpo p {
+    font-size: 16px;
+    line-height: 1.62;
+    color: #3d4a40;
+}
+.coordenada {
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--texto-suave);
+    font-variant-numeric: tabular-nums;
+}
+.fonte-texto {
+    display: inline-block;
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--verde);
+    text-decoration: none;
+    border-bottom: 1px solid currentColor;
+}
+.fonte-texto[hidden] { display: none; }
+
+/* Galeria só existe quando o lugar tem mais de uma foto. */
+.galeria {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.galeria::-webkit-scrollbar { display: none; }
+.galeria[hidden] { display: none; }
+.galeria img {
+    flex: 0 0 auto;
+    width: 128px; height: 92px;
+    object-fit: cover;
+    border-radius: 11px;
+    box-shadow: var(--sombra);
+}
+
+/* ---------- ESTADO DO LASER ---------- */
+.status-laser {
+    margin-top: 20px;
+    border-radius: 14px;
+    padding: 15px 17px;
+    font-size: 14.5px;
+    line-height: 1.5;
+    background: var(--areia);
+    color: var(--texto);
+    border-left: 5px solid var(--verde);
+}
+.status-laser b { display: block; font-size: 15.5px; margin-bottom: 3px; }
+.status-laser.indo    { border-left-color: var(--terra); background: #fbf3e6; }
+.status-laser.chegou  { border-left-color: var(--verde); background: #eaf5ec; }
+.status-laser.parado  { border-left-color: #b9c4bb; }
+.status-laser.problema{ border-left-color: var(--laser); background: #fdeeea; }
+
+/* ---------- RODAPÉ ---------- */
+.rodape {
+    flex: 0 0 auto;
+    padding: 9px 24px 13px;
+    text-align: center;
+    font-size: 11.5px;
+    color: var(--texto-suave);
+}
+
+/* ---------- TABLET EM PÉ ---------- */
+/* Em retrato a coluna dupla espremeria as duas metades; o mapa vira
+   uma faixa no topo e a lista ocupa o resto. */
+@media (max-width: 900px), (orientation: portrait) {
+    .palco {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(240px, 38vh) minmax(0, 1fr);
+        gap: 14px;
+        padding: 14px;
+    }
+    .marca { font-size: 22px; }
+    .estado { font-size: 12px; padding: 8px 13px; }
+    .blocos { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+    .ficha-topo { height: 190px; }
+}

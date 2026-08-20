@@ -25,18 +25,25 @@ const firebaseConfig = {
 // depender da API deles no momento da apresentação. O caminho é absoluto
 // (barra inicial) porque as páginas que fazem o fetch vivem em /dev/ — um
 // caminho relativo procuraria em /dev/malhas/ e daria 404.
+//
+// `viewbox` limita a busca externa (Nominatim) à região do mapa que está
+// montado na máquina, no formato que ele exige: oeste, norte, leste, sul.
+// Sem esse cerco, buscar "Catedral" traria uma catedral de outro estado —
+// um lugar para o qual a máquina não teria como apontar.
 const MAPAS = {
     'ponta-grossa': {
         nome: 'Ponta Grossa / PR',
         malha: '/malhas/ponta-grossa.geojson',
         centro: [-25.1392, -50.0692],
-        zoom: 10
+        zoom: 10,
+        viewbox: [-50.4587, -24.8909, -49.6797, -25.3874]
     },
     'parana': {
         nome: 'Paraná (estado)',
         malha: '/malhas/parana.geojson',
         centro: [-24.6167, -51.3217],
-        zoom: 7
+        zoom: 7,
+        viewbox: [-54.6200, -22.5164, -48.0231, -26.7166]
     }
 };
 const MAPA_PADRAO = 'ponta-grossa';

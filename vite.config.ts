@@ -24,6 +24,7 @@ export default defineConfig(({mode}) => {
           home: path.resolve(__dirname, 'index.html'),
           painel: path.resolve(__dirname, 'dev/painel.html'),
           calibracao: path.resolve(__dirname, 'dev/calibracao.html'),
+          lugares: path.resolve(__dirname, 'dev/lugares.html'),
         },
       },
     },
