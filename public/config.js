@@ -15,6 +15,35 @@ const firebaseConfig = {
     appId: "1:430011452547:web:5a6f4b1b7b0a80ddbc1fb6"
 };
 
+// ---------- MAPAS DISPONÍVEIS ----------
+// Cada mapa físico que pode ser montado na máquina tem seu próprio registro.
+// Calibração e pontos salvos ficam separados por mapa no Firebase, em
+// maquina/mapas/<id>/, porque trocar o mapa da parede invalida a calibração
+// anterior mas não deve apagá-la — você volta o mapa antigo e ela ainda vale.
+//
+// As malhas são as oficiais do IBGE, baixadas para public/malhas/ para não
+// depender da API deles no momento da apresentação.
+const MAPAS = {
+    'ponta-grossa': {
+        nome: 'Ponta Grossa / PR',
+        malha: 'malhas/ponta-grossa.geojson',
+        centro: [-25.1392, -50.0692],
+        zoom: 10
+    },
+    'parana': {
+        nome: 'Paraná (estado)',
+        malha: 'malhas/parana.geojson',
+        centro: [-24.6167, -51.3217],
+        zoom: 7
+    }
+};
+const MAPA_PADRAO = 'ponta-grossa';
+
+// Caminho raiz de tudo que pertence a um mapa específico.
+function caminhoMapa(idMapa) {
+    return 'maquina/mapas/' + (idMapa || MAPA_PADRAO);
+}
+
 // ---------- LIMITES FÍSICOS DA MESA (em passos) ----------
 // Fonte única da verdade: o mapa, o D-pad, o clique e a calibração
 // leem daqui. Se o curso real da máquina mudar, mude só estas duas linhas.
