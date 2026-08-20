@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calibração Geográfica - Ponta Grossa/PR</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+    <div id="login-screen">
+        <div class="login-box">
+            <h2 style="color: white; margin-bottom: 20px;">ACESSO RESTRITO</h2>
+            <input type="text" id="login-user" placeholder="Usuário">
+            <input type="password" id="login-pass" placeholder="Senha">
+            <button class="btn btn-primary" onclick="fazerLogin()">ENTRAR NO SISTEMA</button>
+            <p id="login-erro" style="color: var(--neon-red); font-size: 12px; margin-top: 15px; display: none;">Credenciais incorretas!</p>
+        </div>
+    </div>
+
+    <div id="app-content">
+        <header>
+            <div>
+                <h1>CALIBRAÇÃO <span style="color:var(--neon-blue)">— PONTA GROSSA / PR</span></h1>
+            </div>
+            <div class="header-right">
+                <a class="nav-link" href="index.html">← Painel</a>
+                <div class="status-badge">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span id="st">AGUARDANDO...</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard-grid grid-calibracao">
+
+            <!-- ESQUERDA: ROTEIRO + CONTROLE DO LASER -->
+            <div class="center-column">
+                <section class="card">
+                    <h2 class="card-title">Roteiro da Calibração</h2>
+                    <div id="aviso-erro" class="aviso aviso-erro" style="display:none;"></div>
+
+                    <ol class="roteiro">
+                        <li id="et-escolher"><b>Escolher no site</b><span>Clique no mapa, no ponto que você consegue identificar também no mapa físico.</span></li>
+                        <li id="et-posicionar"><b>Posicionar o laser</b><span>Mova a máquina até o laser pousar nesse mesmo ponto do mapa real.</span></li>
+                        <li id="et-associar"><b>Associar</b><span>Grava a coordenada junto com os passos do motor a partir do (0,0).</span></li>
+                        <li id="et-repetir"><b>Repetir</b><span>O segundo ponto fecha a escala e libera a regra de três.</span></li>
+                        <li id="et-terceiro"><b>Terceiro ponto</b><span>Opcional, mas recomendado: corrige o mapa estar torto em relação aos trilhos.</span></li>
+                    </ol>
+
+                    <div id="instrucao" class="instrucao">Carregando...</div>
+                    <div id="acoes-etapa"></div>
+                </section>
+
+                <section class="card">
+                    <h2 class="card-title">Controle do Laser</h2>
+                    <div class="leitura"><span>EIXO X (Passos)</span><span id="vX">0</span></div>
+                    <div class="leitura"><span>EIXO Y (Passos)</span><span id="vY">0</span></div>
+
+                    <div style="margin-top: 16px; padding: 15px; background: var(--card-alt); border-radius: 12px; border: 1px solid #444;">
+                        <label class="campo" style="margin-top:0;">Quantidade de Passos</label>
+                        <div class="passo-row">
+                            <button class="d-btn" onclick="definirPasso(1)">1</button>
+                            <button class="d-btn" onclick="definirPasso(10)">10</button>
+                            <button class="d-btn" onclick="definirPasso(100)">100</button>
+                            <button class="d-btn" onclick="definirPasso(500)">500</button>
+                        </div>
+                        <input type="number" id="qtd-passos" value="100" class="coord" style="text-align:center; font-size:18px; color:var(--neon-blue);">
+                    </div>
+
+                    <div class="d-pad">
+                        <div class="d-vazio"></div>
+                        <button class="d-btn" onclick="moverEixo('Y', 1)">Y +</button>
+                        <div class="d-vazio"></div>
+                        <button class="d-btn" onclick="moverEixo('X', -1)">X -</button>
+                        <button class="d-btn" style="background:#dc3545; color:white;" onclick="enviarHoming()">Zerar<br>(HOME)</button>
+                        <button class="d-btn" onclick="moverEixo('X', 1)">X +</button>
+                        <div class="d-vazio"></div>
+                        <button class="d-btn" onclick="moverEixo('Y', -1)">Y -</button>
+                        <div class="d-vazio"></div>
+                    </div>
+
+                    <button class="btn btn-danger" style="margin-top:16px;" onclick="pararMaquina()">PARADA DE EMERGÊNCIA</button>
+                </section>
+            </div>
+
+            <!-- CENTRO: MAPA REAL -->
+            <section class="card map-geo-card">
+                <h2 class="card-title">Mapa de Ponta Grossa</h2>
+                <div id="mapa-geo"></div>
+                <div id="legenda-mapa" class="legenda-mapa">
+                    <span><i class="pino-legenda azul"></i> ponto escolhido</span>
+                    <span><i class="pino-legenda verde"></i> referência gravada</span>
+                    <span><i class="pino-legenda vermelho"></i> laser agora</span>
+                </div>
+            </section>
+
+            <!-- DIREITA: PONTOS E ESCALA -->
+            <div class="center-column">
+                <section class="card">
+                    <h2 class="card-title">Pontos de Referência</h2>
+                    <div class="ponto-box" id="box-p1">
+                        <div class="ponto-head">
+                            <span class="ponto-tag">PONTO 1</span>
+                            <button class="btn-mini" onclick="apagarPonto('p1')">Apagar</button>
+                        </div>
+                        <div id="resumo-p1"><p class="vazio">Ainda não gravado.</p></div>
+                    </div>
+                    <div class="ponto-box" id="box-p2">
+                        <div class="ponto-head">
+                            <span class="ponto-tag">PONTO 2</span>
+                            <button class="btn-mini" onclick="apagarPonto('p2')">Apagar</button>
+                        </div>
+                        <div id="resumo-p2"><p class="vazio">Ainda não gravado.</p></div>
+                    </div>
+                    <div class="ponto-box" id="box-p3">
+                        <div class="ponto-head">
+                            <span class="ponto-tag">PONTO 3 <small style="color:var(--text-dim);font-weight:400;">opcional</small></span>
+                            <button class="btn-mini" onclick="apagarPonto('p3')">Apagar</button>
+                        </div>
+                        <div id="resumo-p3"><p class="vazio">Sem o 3º ponto o sistema assume que o mapa está alinhado com os trilhos.</p></div>
+                    </div>
+                    <p class="info-text">Escolha os pontos bem afastados e em diagonal. Eles precisam diferir tanto em latitude quanto em longitude — dois pontos na mesma horizontal não fecham a escala vertical.</p>
+                </section>
+
+                <section class="card">
+                    <h2 class="card-title">Escala Calculada</h2>
+                    <div id="painel-escala"><p class="vazio">Grave os dois pontos para calcular a escala.</p></div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="config.js"></script>
+
+    <script>
+        // Aproximação padrão usada só para exibir resolução em metros
+        const METROS_POR_GRAU_LAT = 111320;
+
+        // Centro de Ponta Grossa/PR
+        const CENTRO_PG = [-25.0945, -50.1633];
+        const ZOOM_INICIAL = 12;
+
+        let database;
+        let posicaoXAtual = 0;
+        let posicaoYAtual = 0;
+        let calib = { p1: null, p2: null, p3: null };
+
+        let mapa = null;
+        let pontoProvisorio = null;   // {lat, lon} clicado mas ainda não confirmado
+        let destinoProvisorio = null; // {lat, lon} clicado depois de calibrado
+        let etapa = 'p1-escolher';    // p1-escolher | p1-posicionar | p2-escolher | p2-posicionar | pronto
+        const marcadores = { provisorio: null, p1: null, p2: null, p3: null, laser: null };
+
+        // ============ LOGIN ============
+        function fazerLogin() {
+            const user = document.getElementById('login-user').value;
+            const pass = document.getElementById('login-pass').value;
+
+            if (user === "admin" && pass === "laser123") {
+                document.getElementById('login-screen').style.display = "none";
+                document.getElementById('app-content').style.display = "flex";
+
+                firebase.initializeApp(firebaseConfig);
+                database = firebase.database();
+                document.getElementById('st').innerText = "CONECTADO";
+                document.getElementById('status-dot').style.background = "var(--neon-blue)";
+                document.getElementById('status-dot').style.boxShadow = "0 0 10px var(--neon-blue)";
+
+                iniciarMapa();
+                iniciarSistema();
+            } else {
+                document.getElementById('login-erro').style.display = "block";
+            }
+        }
+
+        function erroFirebase(err) {
+            const box = document.getElementById('aviso-erro');
+            box.style.display = "block";
+            box.innerHTML = "<b>Firebase recusou a operação:</b> " + err.message +
+                "<br><br>Se aparecer <i>permission_denied</i>, o problema está nas Regras do Realtime Database, não no código.";
+            document.getElementById('st').innerText = "ERRO DE PERMISSÃO";
+            document.getElementById('status-dot').style.background = "var(--neon-red)";
+            document.getElementById('status-dot').style.boxShadow = "0 0 10px var(--neon-red)";
+        }
+
+        // ============ MAPA ============
+        function iniciarMapa() {
+            mapa = L.map('mapa-geo', { zoomControl: true }).setView(CENTRO_PG, ZOOM_INICIAL);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(mapa);
+
+            mapa.on('click', aoClicarNoMapa);
+
+            // O contêiner só ganha tamanho depois do login; sem isso o Leaflet
+            // calcula as dimensões como zero e o mapa aparece cortado.
+            setTimeout(() => mapa.invalidateSize(), 100);
+        }
+
+        // Ícones em CSS puro: os PNGs padrão do Leaflet costumam quebrar
+        // conforme o caminho do CDN, e assim o pino combina com o tema.
+        function pino(classe, rotulo) {
+            return L.divIcon({
+                className: '',
+                html: '<div class="pino ' + classe + '">' + (rotulo || '') + '</div>',
+                iconSize: [18, 18],
+                iconAnchor: [9, 9]
+            });
+        }
+
+        function aoClicarNoMapa(e) {
+            const lat = e.latlng.lat, lon = e.latlng.lng;
+
+            if (etapa === 'p1-escolher' || etapa === 'p2-escolher') {
+                pontoProvisorio = { lat: lat, lon: lon };
+                desenharProvisorio();
+                renderEtapa();
+            } else if (etapa === 'pronto') {
+                destinoProvisorio = { lat: lat, lon: lon };
+                desenharProvisorio();
+                renderEtapa();
+            }
+            // Durante 'posicionar' o clique é ignorado de propósito: o ponto já
+            // foi escolhido e trocá-lo sem querer invalidaria a mira em curso.
+        }
+
+        function desenharProvisorio() {
+            const p = pontoProvisorio || destinoProvisorio;
+            if (marcadores.provisorio) { mapa.removeLayer(marcadores.provisorio); marcadores.provisorio = null; }
+            if (!p) return;
+            marcadores.provisorio = L.marker([p.lat, p.lon], { icon: pino('azul') }).addTo(mapa);
+        }
+
+        function desenharReferencias() {
+            ['p1', 'p2', 'p3'].forEach((qual) => {
+                if (marcadores[qual]) { mapa.removeLayer(marcadores[qual]); marcadores[qual] = null; }
+                const p = calib[qual];
+                if (!p) return;
+                marcadores[qual] = L.marker([p.lat, p.lon], { icon: pino('verde', qual.slice(1)) })
+                    .addTo(mapa)
+                    .bindTooltip(p.nome + ' — X:' + p.passosX + ' Y:' + p.passosY);
+            });
+        }
+
+        function desenharLaser() {
+            if (marcadores.laser) { mapa.removeLayer(marcadores.laser); marcadores.laser = null; }
+            const c = passosParaCoord(posicaoXAtual, posicaoYAtual);
+            if (!c) return;
+            marcadores.laser = L.marker([c.lat, c.lon], { icon: pino('vermelho') })
+                .addTo(mapa)
+                .bindTooltip('Laser: X ' + posicaoXAtual + ' / Y ' + posicaoYAtual);
+        }
+
+        // ============ MÁQUINA DE ETAPAS ============
+        // O ponto 3 só entra em cena quando o usuário pede: com 2 já dá para
+        // trabalhar, e forçar um terceiro atrasaria quem só quer testar.
+        function proximoPonto() {
+            if (!calib.p1) return 'p1';
+            if (!calib.p2) return 'p2';
+            if (!calib.p3 && (etapa === 'p3-escolher' || etapa === 'p3-posicionar')) return 'p3';
+            return null;
+        }
+
+        function etapaAtual() {
+            const alvo = proximoPonto();
+            if (!alvo) return 'pronto';
+            return (etapa === alvo + '-posicionar') ? alvo + '-posicionar' : alvo + '-escolher';
+        }
+
+        function iniciarTerceiroPonto() {
+            destinoProvisorio = null;
+            pontoProvisorio = null;
+            etapa = 'p3-escolher';
+            desenharProvisorio();
+            renderEtapa();
+        }
+
+        function renderEtapa() {
+            etapa = etapaAtual();
+            const inst = document.getElementById('instrucao');
+            const acoes = document.getElementById('acoes-etapa');
+            const alvo = proximoPonto();
+            const numero = alvo ? alvo.slice(1) : '';
+
+            const mapaEtapas = {
+                'p1-escolher': 'et-escolher',   'p2-escolher': 'et-escolher',
+                'p1-posicionar': 'et-posicionar', 'p2-posicionar': 'et-associar',
+                'p3-escolher': 'et-terceiro',   'p3-posicionar': 'et-terceiro',
+                'pronto': 'et-repetir'
+            };
+            ['et-escolher','et-posicionar','et-associar','et-repetir','et-terceiro'].forEach(id => {
+                document.getElementById(id).classList.toggle('ativo', mapaEtapas[etapa] === id);
+            });
+
+            if (etapa.endsWith('-escolher')) {
+                if (!pontoProvisorio) {
+                    inst.className = 'instrucao';
+                    inst.innerHTML = '<b>Escolher — Ponto ' + numero + '</b><br>Clique no mapa ao lado, sobre um lugar que você também consiga identificar no mapa físico da máquina.' +
+                        (alvo === 'p3' ? '<br><br>Para o terceiro, prefira um ponto <b>fora da linha</b> entre os dois primeiros — é o desalinhamento dele que revela a torção do mapa.' : '');
+                    acoes.innerHTML = (alvo === 'p3')
+                        ? '<button class="btn btn-mini" style="width:100%;" onclick="cancelarEscolha()">Cancelar e manter 2 pontos</button>'
+                        : '';
+                } else {
+                    inst.className = 'instrucao ativa';
+                    inst.innerHTML = '<b>Ponto ' + numero + ' escolhido</b><br><span class="mono">' +
+                        pontoProvisorio.lat.toFixed(6) + ', ' + pontoProvisorio.lon.toFixed(6) + '</span>' +
+                        '<br>Confira se é esse mesmo lugar antes de confirmar.';
+                    acoes.innerHTML =
+                        '<label class="campo">Nome (opcional)</label>' +
+                        '<input type="text" id="nome-ponto" placeholder="Ex: Praça Barão do Rio Branco">' +
+                        '<button class="btn btn-primary" style="margin-top:12px;" onclick="confirmarEscolha()">CONFIRMAR ESTE PONTO</button>' +
+                        '<button class="btn btn-mini" style="width:100%;margin-top:8px;" onclick="cancelarEscolha()">Escolher outro lugar</button>';
+                }
+                return;
+            }
+
+            if (etapa.endsWith('-posicionar')) {
+                inst.className = 'instrucao ativa';
+                inst.innerHTML = '<b>Posicione o laser — Ponto ' + numero + '</b><br>Use o controle abaixo para levar o laser até <b>' +
+                    (pontoProvisorio ? pontoProvisorio.lat.toFixed(6) + ', ' + pontoProvisorio.lon.toFixed(6) : '') +
+                    '</b> no mapa <b>físico</b>.<br><br>Quando o feixe estiver exatamente sobre o ponto, associe.';
+                acoes.innerHTML =
+                    '<button class="btn btn-ghost" onclick="associarPosicao()">ASSOCIAR POSIÇÃO ATUAL (X ' +
+                    posicaoXAtual + ' / Y ' + posicaoYAtual + ')</button>' +
+                    '<button class="btn btn-mini" style="width:100%;margin-top:8px;" onclick="cancelarEscolha()">Voltar e escolher outro ponto</button>';
+                return;
+            }
+
+            // ----- etapa 'pronto' -----
+            const t = calcularTransformacao();
+            if (!t) {
+                inst.className = 'instrucao alerta';
+                inst.innerHTML = calib.p3
+                    ? '<b>Os três pontos estão em linha reta.</b><br>Pontos colineares não definem um plano, então não dá para resolver a rotação. Apague o Ponto 3 e escolha um fora da linha entre os outros dois.'
+                    : '<b>Os dois pontos não fecham a escala.</b><br>Eles têm a mesma latitude ou a mesma longitude, o que zera a divisão em um dos eixos. Apague um e escolha outro em diagonal.';
+                acoes.innerHTML = '';
+                return;
+            }
+
+            const botaoTerceiro = (t.pontos === 2)
+                ? '<button class="btn btn-ghost" style="margin-top:8px;" onclick="iniciarTerceiroPonto()">ADICIONAR 3º PONTO (corrige rotação)</button>'
+                : '';
+            const botaoRefazer = '<button class="btn btn-mini" style="width:100%;margin-top:8px;" onclick="refazerCalibracao()">Refazer calibração</button>';
+
+            inst.className = 'instrucao ok';
+            if (!destinoProvisorio) {
+                inst.innerHTML = '<b>Calibrado com ' + t.pontos + ' pontos.</b><br>' +
+                    (t.pontos === 2
+                        ? 'A conversão assume que o mapa está <b>alinhado</b> com os trilhos. Se o erro crescer na diagonal, é torção — o 3º ponto resolve.'
+                        : 'Transformação afim completa: rotação e cisalhamento do mapa já estão corrigidos.') +
+                    '<br><br>Clique em qualquer lugar do mapa para mandar a máquina até lá.';
+                acoes.innerHTML = botaoTerceiro + botaoRefazer;
+            } else {
+                const p = coordParaPassos(destinoProvisorio.lat, destinoProvisorio.lon);
+                const fora = p.x < 0 || p.x > PASSOS_MAX_X || p.y < 0 || p.y > PASSOS_MAX_Y;
+                inst.innerHTML = '<b>Destino escolhido</b><br><span class="mono">' +
+                    destinoProvisorio.lat.toFixed(6) + ', ' + destinoProvisorio.lon.toFixed(6) + '</span><br>' +
+                    'Convertido: <span class="mono">X ' + p.x + ' / Y ' + p.y + '</span>' +
+                    (fora ? '<br><span style="color:var(--neon-red)">Fora do curso da máquina (X 0–' + PASSOS_MAX_X + ', Y 0–' + PASSOS_MAX_Y + ').</span>' : '');
+                acoes.innerHTML =
+                    (fora ? '' : '<button class="btn btn-primary" onclick="moverParaDestino()">MOVER MÁQUINA PARA CÁ</button>') +
+                    botaoTerceiro + botaoRefazer;
+            }
+        }
+
+        function confirmarEscolha() {
+            if (!pontoProvisorio) return;
+            pontoProvisorio.nome = (document.getElementById('nome-ponto').value || '').trim();
+            etapa = proximoPonto() + '-posicionar';
+            renderEtapa();
+        }
+
+        function cancelarEscolha() {
+            pontoProvisorio = null;
+            destinoProvisorio = null;
+            const alvo = proximoPonto();
+            // Cancelar no 3º ponto volta para 'pronto' com os 2 já calibrados,
+            // em vez de reabrir uma etapa que o usuário acabou de recusar.
+            etapa = (!alvo || alvo === 'p3') ? 'pronto' : alvo + '-escolher';
+            desenharProvisorio();
+            renderEtapa();
+        }
+
+        function associarPosicao() {
+            if (!database || !pontoProvisorio) return;
+            const qual = proximoPonto();
+            if (!qual) return;
+
+            const existentes = ['p1','p2','p3'].filter(k => k !== qual && calib[k]).map(k => calib[k]);
+            for (const o of existentes) {
+                if (o.passosX === posicaoXAtual && o.passosY === posicaoYAtual) {
+                    alert("Já existe um ponto gravado nessa mesma posição de passos (" +
+                          posicaoXAtual + ", " + posicaoYAtual + ").\n\nMova a máquina antes de associar.");
+                    return;
+                }
+                if (o.lat === pontoProvisorio.lat && o.lon === pontoProvisorio.lon) {
+                    alert("Já existe um ponto gravado nesse mesmo lugar do mapa.");
+                    return;
+                }
+            }
+
+            database.ref('maquina/calibracao/' + qual).set({
+                nome: pontoProvisorio.nome || ('Ponto ' + qual.slice(1)),
+                lat: pontoProvisorio.lat,
+                lon: pontoProvisorio.lon,
+                passosX: posicaoXAtual,
+                passosY: posicaoYAtual,
+                gravadoEm: new Date().toISOString()
+            }).then(() => {
+                pontoProvisorio = null;
+                etapa = 'pronto';
+                desenharProvisorio();
+                document.getElementById('st').innerText = qual.toUpperCase() + " ASSOCIADO";
+            }).catch(erroFirebase);
+        }
+
+        function apagarPonto(qual) {
+            if (!database) return;
+            const aviso = (qual === 'p3')
+                ? "Apagar o Ponto 3? A calibração volta a assumir o mapa alinhado."
+                : "Apagar o " + qual.toUpperCase() + "? A calibração deixa de valer até gravar de novo.";
+            if (!confirm(aviso)) return;
+            database.ref('maquina/calibracao/' + qual).remove().catch(erroFirebase);
+        }
+
+        function refazerCalibracao() {
+            if (!database) return;
+            if (!confirm("Refazer a calibração do zero? Todos os pontos serão apagados.")) return;
+            destinoProvisorio = null;
+            pontoProvisorio = null;
+            etapa = 'p1-escolher';
+            database.ref('maquina/calibracao').remove().catch(erroFirebase);
+        }
+
+        function moverParaDestino() {
+            if (!database || !destinoProvisorio) return;
+            const p = coordParaPassos(destinoProvisorio.lat, destinoProvisorio.lon);
+            if (!p) return;
+            if (p.x < 0 || p.x > PASSOS_MAX_X || p.y < 0 || p.y > PASSOS_MAX_Y) return;
+            database.ref('maquina/alvoX').set(p.x).catch(erroFirebase);
+            database.ref('maquina/alvoY').set(p.y).catch(erroFirebase);
+            document.getElementById('st').innerText = "ALVO GEO: X:" + p.x + " Y:" + p.y;
+        }
+
+        // ============ FIREBASE ============
+        function iniciarSistema() {
+            database.ref('maquina/eixoX').on('value', (snap) => {
+                posicaoXAtual = snap.val() || 0;
+                document.getElementById('vX').innerText = posicaoXAtual;
+                desenharLaser();
+                renderEtapa();
+            }, erroFirebase);
+
+            database.ref('maquina/eixoY').on('value', (snap) => {
+                posicaoYAtual = snap.val() || 0;
+                document.getElementById('vY').innerText = posicaoYAtual;
+                desenharLaser();
+                renderEtapa();
+            }, erroFirebase);
+
+            database.ref('maquina/calibracao').on('value', (snap) => {
+                const v = snap.val() || {};
+                calib.p1 = v.p1 || null;
+                calib.p2 = v.p2 || null;
+                calib.p3 = v.p3 || null;
+                renderPonto('p1');
+                renderPonto('p2');
+                renderPonto('p3');
+                renderEscala();
+                desenharReferencias();
+                desenharLaser();
+                renderEtapa();
+            }, erroFirebase);
+        }
+
+        // ============ NÚCLEO DA CALIBRAÇÃO ============
+        // Tudo é expresso como uma transformação afim:
+        //     passosX = a*lon + b*lat + c
+        //     passosY = d*lon + e*lat + f
+        // Com 3 pontos os seis coeficientes são resolvidos de verdade, o que
+        // absorve rotação e cisalhamento (mapa torto em relação aos trilhos).
+        // Com 2 pontos usamos a mesma forma com b=0 e d=0, ou seja, assumimos
+        // que o mapa está alinhado. Assim a conversão tem UMA implementação só.
+        function calcularTransformacao() {
+            const p1 = calib.p1, p2 = calib.p2, p3 = calib.p3;
+            if (!p1 || !p2) return null;
+
+            if (p3) {
+                // Regra de Cramer sobre [[lon1,lat1,1],[lon2,lat2,1],[lon3,lat3,1]]
+                const det = p1.lon * (p2.lat - p3.lat)
+                          - p1.lat * (p2.lon - p3.lon)
+                          + (p2.lon * p3.lat - p2.lat * p3.lon);
+
+                // Determinante nulo = os três pontos estão em linha reta e não
+                // definem um plano; nesse caso o terceiro não acrescenta nada.
+                if (Math.abs(det) < 1e-12) return null;
+
+                const resolver = (v1, v2, v3) => {
+                    const A = v1 * (p2.lat - p3.lat) - p1.lat * (v2 - v3) + (v2 * p3.lat - p2.lat * v3);
+                    const B = p1.lon * (v2 - v3) - v1 * (p2.lon - p3.lon) + (p2.lon * v3 - v2 * p3.lon);
+                    const C = p1.lon * (p2.lat * v3 - v2 * p3.lat)
+                            - p1.lat * (p2.lon * v3 - v2 * p3.lon)
+                            + v1 * (p2.lon * p3.lat - p2.lat * p3.lon);
+                    return [A / det, B / det, C / det];
+                };
+
+                const cx = resolver(p1.passosX, p2.passosX, p3.passosX);
+                const cy = resolver(p1.passosY, p2.passosY, p3.passosY);
+                if (Math.abs(cx[0] * cy[1] - cx[1] * cy[0]) < 1e-12) return null;
+
+                return { tipo: 'afim', pontos: 3,
+                         a: cx[0], b: cx[1], c: cx[2],
+                         d: cy[0], e: cy[1], f: cy[2] };
+            }
+
+            const deltaLon = p2.lon - p1.lon;
+            const deltaLat = p2.lat - p1.lat;
+            if (deltaLon === 0 || deltaLat === 0) return null;
+
+            const a = (p2.passosX - p1.passosX) / deltaLon;
+            const e = (p2.passosY - p1.passosY) / deltaLat;
+            return { tipo: 'linear', pontos: 2,
+                     a: a, b: 0, c: p1.passosX - a * p1.lon,
+                     d: 0, e: e, f: p1.passosY - e * p1.lat };
+        }
+
+        function coordParaPassos(lat, lon) {
+            const t = calcularTransformacao();
+            if (!t) return null;
+            return {
+                x: Math.round(t.a * lon + t.b * lat + t.c),
+                y: Math.round(t.d * lon + t.e * lat + t.f)
+            };
+        }
+
+        function passosParaCoord(x, y) {
+            const t = calcularTransformacao();
+            if (!t) return null;
+            const det = t.a * t.e - t.b * t.d;
+            if (Math.abs(det) < 1e-12) return null;
+            const px = x - t.c, py = y - t.f;
+            return {
+                lon: ( t.e * px - t.b * py) / det,
+                lat: (-t.d * px + t.a * py) / det
+            };
+        }
+
+        // Traduz a matriz para números que significam algo no mundo físico.
+        // Trabalha em metros: 1 grau de longitude encolhe com o cosseno da
+        // latitude, e sem corrigir isso o ângulo medido sairia errado.
+        function diagnostico(t, latMedia) {
+            const kLat = METROS_POR_GRAU_LAT;
+            const kLon = METROS_POR_GRAU_LAT * Math.cos(latMedia * Math.PI / 180);
+
+            // Imagem, em passos, de 1 metro para leste e de 1 metro para norte.
+            const lesteX = t.a / kLon, lesteY = t.d / kLon;
+            const norteX = t.b / kLat, norteY = t.e / kLat;
+
+            const passosPorMetroLeste = Math.hypot(lesteX, lesteY);
+            const passosPorMetroNorte = Math.hypot(norteX, norteY);
+
+            // Os dois eixos da mesa deveriam ser perpendiculares. O desvio é a
+            // melhor medida de qualidade que existe aqui: com 3 pontos o ajuste
+            // é exato por construção, então não há resíduo para inspecionar.
+            const cosAng = (lesteX * norteX + lesteY * norteY) /
+                           (passosPorMetroLeste * passosPorMetroNorte);
+            const anguloEixos = Math.acos(Math.max(-1, Math.min(1, cosAng))) * 180 / Math.PI;
+
+            // Inclinação do mapa: normalizada para [-90, 90] porque eixo
+            // invertido daria 180 graus e isso não é torção, é só sinal.
+            let inclinacao = Math.atan2(lesteY, lesteX) * 180 / Math.PI;
+            while (inclinacao >  90) inclinacao -= 180;
+            while (inclinacao < -90) inclinacao += 180;
+
+            return {
+                metrosPorPassoX: 1 / passosPorMetroLeste,
+                metrosPorPassoY: 1 / passosPorMetroNorte,
+                anguloEixos: anguloEixos,
+                desvioPerpendicular: Math.abs(90 - anguloEixos),
+                inclinacao: inclinacao
+            };
+        }
+
+        // ============ RENDER ============
+        function renderPonto(qual) {
+            const p = calib[qual];
+            const alvo = document.getElementById('resumo-' + qual);
+            const box = document.getElementById('box-' + qual);
+            if (!p) {
+                alvo.innerHTML = (qual === 'p3')
+                    ? '<p class="vazio">Sem o 3º ponto o sistema assume que o mapa está alinhado com os trilhos.</p>'
+                    : '<p class="vazio">Ainda não gravado.</p>';
+                box.classList.remove('gravado');
+                return;
+            }
+            box.classList.add('gravado');
+            alvo.innerHTML = '<div class="ponto-resumo">' +
+                '<b>' + p.nome + '</b><br>' +
+                'passos &nbsp; X: <b>' + p.passosX + '</b> &nbsp; Y: <b>' + p.passosY + '</b><br>' +
+                'geo &nbsp;&nbsp;&nbsp;&nbsp; ' + p.lat.toFixed(6) + ', ' + p.lon.toFixed(6) +
+                '</div>';
+        }
+
+        function renderEscala() {
+            const painel = document.getElementById('painel-escala');
+            const p1 = calib.p1, p2 = calib.p2, p3 = calib.p3;
+            if (!p1 || !p2) {
+                painel.innerHTML = '<p class="vazio">Grave os dois primeiros pontos para calcular a escala.</p>';
+                return;
+            }
+
+            const t = calcularTransformacao();
+            if (!t) {
+                painel.innerHTML = '<div class="aviso aviso-erro"><b>Não dá para resolver a transformação.</b><br>' +
+                    (p3 ? 'Os três pontos são colineares — não definem um plano.'
+                        : 'Os dois pontos têm a mesma latitude ou a mesma longitude.') + '</div>';
+                return;
+            }
+
+            const usados = [p1, p2].concat(p3 ? [p3] : []);
+            const latMedia = usados.reduce((soma, p) => soma + p.lat, 0) / usados.length;
+            const g = diagnostico(t, latMedia);
+
+            let html = '<div class="aviso aviso-ok"><b>Calibração ativa com ' + t.pontos + ' pontos.</b> ' +
+                (t.pontos === 3
+                    ? 'Transformação afim completa — rotação e cisalhamento corrigidos.'
+                    : 'Mapeamento alinhado aos eixos, sem correção de rotação.') + '</div>';
+
+            html += '<div class="escala-linha destaque"><span>Resolução eixo X</span><span>' + formatarMetros(g.metrosPorPassoX) + ' / passo</span></div>';
+            html += '<div class="escala-linha destaque"><span>Resolução eixo Y</span><span>' + formatarMetros(g.metrosPorPassoY) + ' / passo</span></div>';
+
+            if (t.pontos === 3) {
+                html += '<div class="escala-linha"><span>Inclinação do mapa</span><span>' + g.inclinacao.toFixed(2) + '°</span></div>';
+                html += '<div class="escala-linha"><span>Ângulo entre eixos</span><span>' + g.anguloEixos.toFixed(2) + '°</span></div>';
+
+                // Com 3 pontos o ajuste é exato por construção, então não sobra
+                // resíduo para medir. A perpendicularidade dos eixos é a única
+                // pista de qualidade disponível: a mesa é ortogonal de verdade,
+                // logo um desvio grande denuncia erro de mira, não o mapa.
+                if (g.desvioPerpendicular > 3) {
+                    html += '<div class="aviso aviso-alerta" style="margin-top:16px;"><b>Eixos fora de esquadro em ' +
+                        g.desvioPerpendicular.toFixed(1) + '°.</b> Os trilhos da máquina são perpendiculares de verdade, ' +
+                        'então esse desvio quase certamente veio de mira imprecisa em algum dos três pontos. ' +
+                        'Confira qual deles está mais fora e regrave.</div>';
+                } else if (Math.abs(g.inclinacao) > 1) {
+                    html += '<div class="aviso aviso-alerta" style="margin-top:16px;">O mapa está <b>' +
+                        Math.abs(g.inclinacao).toFixed(1) + '° torto</b> em relação aos trilhos. ' +
+                        'Já está sendo compensado — com apenas 2 pontos esse erro seria invisível e cresceria na diagonal.</div>';
+                }
+            } else {
+                html += '<div class="aviso aviso-alerta" style="margin-top:16px;">A inclinação do mapa <b>não é medida</b> ' +
+                    'com 2 pontos: ela é assumida como zero. Se o mapa estiver torto na parede, o erro cresce conforme ' +
+                    'você se afasta das referências. Adicione o 3º ponto para medir e corrigir.</div>';
+            }
+
+            const seps = [];
+            for (let i = 0; i < usados.length; i++) {
+                for (let j = i + 1; j < usados.length; j++) {
+                    seps.push(Math.hypot(usados[j].passosX - usados[i].passosX,
+                                         usados[j].passosY - usados[i].passosY));
+                }
+            }
+            if (Math.min.apply(null, seps) < 70) {
+                html += '<div class="aviso aviso-alerta" style="margin-top:16px;"><b>Pontos muito próximos.</b> ' +
+                    'O par mais próximo está a ' + Math.round(Math.min.apply(null, seps)) + ' passos. ' +
+                    'Qualquer imprecisão de mira vira erro grande na escala inteira.</div>';
+            }
+
+            painel.innerHTML = html;
+        }
+
+        function formatarMetros(m) {
+            if (!isFinite(m)) return '—';
+            if (m >= 1000) return (m / 1000).toFixed(2) + ' km';
+            if (m >= 1) return m.toFixed(1) + ' m';
+            return (m * 100).toFixed(1) + ' cm';
+        }
+
+        // ============ MOVIMENTO MANUAL ============
+        function definirPasso(valor) {
+            document.getElementById('qtd-passos').value = valor;
+        }
+
+        function moverEixo(eixo, direcao) {
+            if (!database) return;
+            const quantidade = parseInt(document.getElementById('qtd-passos').value);
+            if (isNaN(quantidade) || quantidade <= 0) {
+                alert("Digite uma quantidade de passos válida.");
+                return;
+            }
+            const posBase = (eixo === 'X') ? posicaoXAtual : posicaoYAtual;
+            const limite = (eixo === 'X') ? PASSOS_MAX_X : PASSOS_MAX_Y;
+            let novoAlvo = posBase + (quantidade * direcao);
+
+            if (novoAlvo > limite) { novoAlvo = limite; alert("Atingiu o limite mecânico do eixo " + eixo + "."); }
+            if (novoAlvo < 0)      { novoAlvo = 0;      alert("Não pode retroceder além do ponto zero (Homing)."); }
+
+            database.ref('maquina/alvo' + eixo).set(novoAlvo).catch(erroFirebase);
+            document.getElementById('st').innerText = "MOVENDO " + eixo + " PARA " + novoAlvo;
+        }
+
+        function enviarHoming() {
+            if (!database) return;
+            if (confirm("Fazer Homing (retornar a máquina ao ponto zero)?")) {
+                database.ref('maquina/comandoHoming').set(true).catch(erroFirebase);
+                document.getElementById('st').innerText = "CALIBRANDO HOME...";
+            }
+        }
+
+        function pararMaquina() {
+            if (!database) return;
+            database.ref('maquina/alvoX').set(posicaoXAtual).catch(erroFirebase);
+            database.ref('maquina/alvoY').set(posicaoYAtual).catch(erroFirebase);
+            document.getElementById('st').innerText = "PARADA DE EMERGÊNCIA ACIONADA!";
+        }
+    </script>
+</body>
+</html>
