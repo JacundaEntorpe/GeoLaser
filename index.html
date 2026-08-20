@@ -90,7 +90,12 @@
             <div class="right-column">
                 <section class="card" style="flex: 1;">
                     <h2 class="card-title">Destinos e Cidades</h2>
-                    <p style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Selecione uma cidade para mover a máquina automaticamente.</p>
+                    <div class="mapa-ativo-tag">
+                        <span>Mapa montado</span>
+                        <b id="rotulo-mapa">—</b>
+                    </div>
+                    <div id="aviso-calib" class="aviso-calib pendente">Carregando calibração...</div>
+                    <p style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Os destinos abaixo pertencem a este mapa. Trocar o mapa na tela de calibração troca a lista.</p>
                     
                     <div class="control-group">
                         <select id="cidades" onchange="irCidadeSelecionada(this.value)">
@@ -113,6 +118,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="config.js"></script>
+    <script src="calibracao.js"></script>
 
     <script>
 
@@ -120,6 +126,9 @@
         let posicaoXAtual = 0;
         let posicaoYAtual = 0;
         let bancoDeCidades = {};
+        let mapaAtivo = MAPA_PADRAO;
+        let calib = { p1: null, p2: null, p3: null };
+        let refPontos = null, refCalib = null;
 
         function fazerLogin() {
             const user = document.getElementById('login-user').value;
@@ -157,8 +166,32 @@
                 atualizarPontoNoMapa();
             });
 
-            // Escuta a lista de cidades
-            database.ref('maquina/cidades').on('value', (snapshot) => {
+            // Qual mapa está montado na máquina. Definido na tela de
+            // calibração; calibração e pontos salvos pertencem a esse mapa.
+            database.ref('maquina/mapaAtivo').on('value', (snap) => {
+                mapaAtivo = MAPAS[snap.val()] ? snap.val() : MAPA_PADRAO;
+                document.getElementById('rotulo-mapa').innerText = MAPAS[mapaAtivo].nome;
+                ouvirDadosDoMapa();
+            });
+        }
+
+        // Religa as escutas ao trocar de mapa. Sem o .off() os listeners
+        // antigos continuariam vivos e misturariam pontos de mapas diferentes.
+        function ouvirDadosDoMapa() {
+            if (refPontos) refPontos.off();
+            if (refCalib) refCalib.off();
+
+            refCalib = database.ref(caminhoMapa(mapaAtivo) + '/calibracao');
+            refCalib.on('value', (snap) => {
+                const v = snap.val() || {};
+                calib.p1 = v.p1 || null;
+                calib.p2 = v.p2 || null;
+                calib.p3 = v.p3 || null;
+                atualizarAvisoCalibracao();
+            });
+
+            refPontos = database.ref(caminhoMapa(mapaAtivo) + '/pontos');
+            refPontos.on('value', (snapshot) => {
                 const select = document.getElementById('cidades');
                 select.innerHTML = '<option value="" disabled selected>Selecionar destino...</option>';
                 bancoDeCidades = {};
@@ -174,6 +207,18 @@
                     select.appendChild(opt);
                 });
             });
+        }
+
+        function atualizarAvisoCalibracao() {
+            const el = document.getElementById('aviso-calib');
+            const t = calcularTransformacao();
+            if (t) {
+                el.className = 'aviso-calib ok';
+                el.innerText = 'Calibrado com ' + t.pontos + ' pontos — pontos salvos usam coordenada real.';
+            } else {
+                el.className = 'aviso-calib pendente';
+                el.innerText = 'Sem calibração para este mapa — pontos salvos guardam só os passos.';
+            }
         }
 
         // Move a bolinha vermelha no mapa com base na coordenada real do motor
@@ -194,12 +239,9 @@
             let percentX = (posicaoXAtual / PASSOS_MAX_X) * 100;
             let percentY = (posicaoYAtual / PASSOS_MAX_Y) * 100;
             
-            // --- LÓGICA DE INVERSÃO VISUAL ---
-            // Se o eixo X estiver invertido (andar para a esquerda em vez da direita), tire as barras da linha abaixo:
-            percentX = 100 - percentX; 
-        
-            // Se o eixo Y estiver invertido (andar para cima em vez de baixo), tire as barras da linha abaixo:
-            percentY = 100 - percentY; 
+            // --- ORIENTAÇÃO --- (definida em config.js, compartilhada com o clique)
+            if (INVERTER_X) percentX = 100 - percentX;
+            if (INVERTER_Y) percentY = 100 - percentY;
             
             // Impede que a bolinha saia visualmente da div
             percentX = Math.max(0, Math.min(100, percentX));
@@ -266,10 +308,10 @@
             let calcX = x / rect.width;
             let calcY = y / rect.height;
         
-            // --- LÓGICA DE INVERSÃO DO CLIQUE ---
-            // ATENÇÃO: Deixe aqui igual ao que deixou na bolinha vermelha!
-            calcX = 1 - calcX; // Inverte X
-            calcY = 1 - calcY; // Inverte Y
+            // --- ORIENTAÇÃO --- (mesmas constantes usadas para desenhar a bolinha,
+            // então as duas não têm mais como divergir)
+            if (INVERTER_X) calcX = 1 - calcX;
+            if (INVERTER_Y) calcY = 1 - calcY;
         
             // Multiplica pelos limites físicos
             let alvoX = Math.round(calcX * PASSOS_MAX_X);
@@ -291,24 +333,44 @@
             const nome = document.getElementById('nome-cidade').value.trim();
             if (!nome) return alert("Digite o nome do ponto/cidade!");
             
-            // Guarda a posição atual onde o motor está fisicamente parado
-            database.ref('maquina/cidades').push().set({
-                nome: nome,
-                x: posicaoXAtual,
-                y: posicaoYAtual
-            }).then(() => {
+            // Guarda os passos e, se o mapa estiver calibrado, também a
+            // coordenada geográfica. A coordenada é a que sobrevive: se você
+            // recalibrar (remontou o mapa um pouco torto), os passos antigos
+            // apontam para o lugar errado, mas a lat/lon continua certa.
+            const registro = { nome: nome, x: posicaoXAtual, y: posicaoYAtual };
+            const c = passosParaCoord(posicaoXAtual, posicaoYAtual);
+            if (c) { registro.lat = c.lat; registro.lon = c.lon; }
+
+            database.ref(caminhoMapa(mapaAtivo) + '/pontos').push().set(registro).then(() => {
                 document.getElementById('nome-cidade').value = "";
-                alert("Posição guardada com sucesso!");
+                alert(c
+                    ? "Ponto guardado com coordenada real:\n" + c.lat.toFixed(6) + ", " + c.lon.toFixed(6)
+                    : "Ponto guardado com os passos atuais.\n\nSem calibração deste mapa não dá para saber a coordenada real — se recalibrar, este ponto sai do lugar.");
             });
         }
 
         function irCidadeSelecionada(idSelecionado) {
-            if (idSelecionado && bancoDeCidades[idSelecionado]) {
-                let destino = bancoDeCidades[idSelecionado];
-                database.ref('maquina/alvoX').set(destino.x);
-                database.ref('maquina/alvoY').set(destino.y);
-                document.getElementById('st').innerText = `INDO PARA: ${destino.nome.toUpperCase()}`;
+            if (!idSelecionado || !bancoDeCidades[idSelecionado]) return;
+            const destino = bancoDeCidades[idSelecionado];
+
+            // Coordenada real tem prioridade sobre os passos gravados: ela
+            // continua válida depois de uma recalibração, os passos não.
+            let alvo = null;
+            if (destino.lat !== undefined && destino.lon !== undefined) {
+                alvo = coordParaPassos(destino.lat, destino.lon);
             }
+            if (!alvo) alvo = { x: destino.x, y: destino.y };
+
+            if (alvo.x < 0 || alvo.x > PASSOS_MAX_X || alvo.y < 0 || alvo.y > PASSOS_MAX_Y) {
+                alert("\"" + destino.nome + "\" cai fora do curso da máquina.\n\n" +
+                      "Convertido: X " + alvo.x + " / Y " + alvo.y + "\n" +
+                      "Curso: X 0-" + PASSOS_MAX_X + ", Y 0-" + PASSOS_MAX_Y + "\n\nNada foi enviado.");
+                return;
+            }
+
+            database.ref('maquina/alvoX').set(alvo.x);
+            database.ref('maquina/alvoY').set(alvo.y);
+            document.getElementById('st').innerText = `INDO PARA: ${destino.nome.toUpperCase()}`;
         }
 
         // Função extra de segurança

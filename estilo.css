@@ -468,3 +468,37 @@ label.campo {
     .map-geo-card { min-height: 480px; order: -1; }
     #mapa-geo { min-height: 400px; }
 }
+
+/* ---------- SELETOR DE MAPA (calibração) ---------- */
+.mapa-topo { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.mapa-topo select { width: auto; min-width: 200px; padding: 10px 14px; font-size: 13px; }
+.traco-legenda {
+    width: 14px; height: 0;
+    border-top: 2px solid var(--neon-blue);
+    display: inline-block;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+/* ---------- MAPA ATIVO E ESTADO DA CALIBRAÇÃO (painel) ---------- */
+.mapa-ativo-tag {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--card-alt);
+    border: 1px solid #444;
+    border-radius: 10px;
+    margin-bottom: 10px;
+}
+.mapa-ativo-tag span { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
+.mapa-ativo-tag b { font-size: 13px; color: var(--neon-blue); font-family: var(--font-mono); }
+
+.aviso-calib {
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    border-left: 3px solid;
+}
+.aviso-calib.ok       { background: rgba(0,255,136,0.08); border-left-color: var(--neon-green); color: var(--neon-green); }
+.aviso-calib.pendente { background: rgba(255,180,0,0.08); border-left-color: var(--neon-amber); color: var(--neon-amber); }
