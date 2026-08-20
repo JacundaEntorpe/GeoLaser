@@ -113,3 +113,46 @@ function diagnostico(t, latMedia) {
         inclinacao: inclinacao
     };
 }
+
+// Quão confiável é a calibração, em termos do que o usuário pode enxergar.
+//
+// A escala de um eixo é deduzida da DIFERENÇA entre dois pontos naquele eixo.
+// Se essa diferença for pequena, qualquer erro de mira é multiplicado por todo
+// o curso da mesa. Com 12 passos de separação em Y e 1160 de curso, errar 1
+// passo ao mirar vira ~97 passos de erro na ponta — foi assim que um destino
+// virou Y=192780.
+//
+// Cuidado: a distância combinada hypot(dx,dy) NÃO detecta isso, porque fica
+// grande quando os pontos estão bem separados no outro eixo. Tem que ser por eixo.
+function qualidadeCalibracao() {
+    const t = calcularTransformacao();
+    if (!t) return null;
+
+    if (t.pontos === 2) {
+        const sepX = Math.abs(calib.p2.passosX - calib.p1.passosX);
+        const sepY = Math.abs(calib.p2.passosY - calib.p1.passosY);
+        return {
+            tipo: 'eixos',
+            sepX: sepX, sepY: sepY,
+            ampX: sepX > 0 ? PASSOS_MAX_X / sepX : Infinity,
+            ampY: sepY > 0 ? PASSOS_MAX_Y / sepY : Infinity
+        };
+    }
+
+    // Com 3 pontos o que importa não é cada eixo isolado, e sim o triângulo
+    // não ser achatado. Área em passos, comparada com a área da mesa.
+    const area = Math.abs(
+        (calib.p2.passosX - calib.p1.passosX) * (calib.p3.passosY - calib.p1.passosY) -
+        (calib.p3.passosX - calib.p1.passosX) * (calib.p2.passosY - calib.p1.passosY)
+    ) / 2;
+    return {
+        tipo: 'area',
+        area: area,
+        fracao: area / (PASSOS_MAX_X * PASSOS_MAX_Y)
+    };
+}
+
+// Amplificação acima disto = a escala daquele eixo veio de uma medida curta
+// demais para ser confiável. 8 equivale a menos de 12,5% do curso da mesa.
+const AMPLIFICACAO_MAXIMA = 8;
+
