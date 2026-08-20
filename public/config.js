@@ -1,6 +1,6 @@
 /* ============================================================
    GeoLaser — configuração compartilhada
-   Carregado por index.html e botao.html ANTES do script da página.
+   Carregado por dev/painel.html e dev/calibracao.html ANTES do script da página.
    Alterar aqui vale para o site inteiro.
    ============================================================ */
 
@@ -22,17 +22,19 @@ const firebaseConfig = {
 // anterior mas não deve apagá-la — você volta o mapa antigo e ela ainda vale.
 //
 // As malhas são as oficiais do IBGE, baixadas para public/malhas/ para não
-// depender da API deles no momento da apresentação.
+// depender da API deles no momento da apresentação. O caminho é absoluto
+// (barra inicial) porque as páginas que fazem o fetch vivem em /dev/ — um
+// caminho relativo procuraria em /dev/malhas/ e daria 404.
 const MAPAS = {
     'ponta-grossa': {
         nome: 'Ponta Grossa / PR',
-        malha: 'malhas/ponta-grossa.geojson',
+        malha: '/malhas/ponta-grossa.geojson',
         centro: [-25.1392, -50.0692],
         zoom: 10
     },
     'parana': {
         nome: 'Paraná (estado)',
-        malha: 'malhas/parana.geojson',
+        malha: '/malhas/parana.geojson',
         centro: [-24.6167, -51.3217],
         zoom: 7
     }

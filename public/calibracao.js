@@ -1,7 +1,7 @@
 /* ============================================================
    GeoLaser — núcleo da calibração geográfica
-   Compartilhado por index.html (converter pontos salvos) e
-   botao.html (calibrar). Depende de: calib (objeto com p1/p2/p3).
+   Compartilhado por dev/painel.html (converter pontos salvos) e
+   dev/calibracao.html (calibrar). Depende de: calib (objeto com p1/p2/p3).
    ============================================================ */
 
 // Aproximação padrão usada só para exibir resolução em metros

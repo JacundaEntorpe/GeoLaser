@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Eixos - CNC/Laser</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../estilo.css">
+</head>
+<body>
+    <div id="login-screen">
+        <div class="login-box">
+            <h2 style="color: white; margin-bottom: 20px;">ACESSO RESTRITO</h2>
+            <input type="text" id="login-user" placeholder="Usuário">
+            <input type="password" id="login-pass" placeholder="Senha">
+            <button class="btn-laser" style="background: var(--neon-blue); box-shadow: 0 4px 15px rgba(0,212,255,0.3);" onclick="fazerLogin()">ENTRAR NO SISTEMA</button>
+            <p id="login-erro" style="color: var(--neon-red); font-size: 12px; margin-top: 15px; display: none;">Credenciais incorretas!</p>
+        </div>
+    </div>
+
+    <div id="app-content">
+        <header>
+            <div>
+                <h1>CONTROLE MÁQUINA <span style="color:var(--neon-blue)">— CNC/LASER</span></h1>
+            </div>
+            <div class="header-right">
+                <a class="nav-link" href="calibracao.html">Calibração Geo →</a>
+                <div class="status-badge">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span id="st">AGUARDANDO...</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard-grid grid-painel">
+            
+            <section class="card">
+                <h2 class="card-title">Posição Atual & Controles</h2>
+                
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>EIXO X (Passos)</span>
+                        <span id="vP">0</span>
+                    </div>
+                    <div class="control-label">
+                        <span>EIXO Y (Passos)</span>
+                        <span id="vT">0</span>
+                    </div>
+                </div>
+
+                <div style="margin-top: 15px; margin-bottom: 20px; padding: 15px; background: var(--card-alt); border-radius: 12px; border: 1px solid #444;">
+                    <label style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px;">Quantidade de Passos</label>
+                    
+                    <div style="display: flex; gap: 8px; margin-top: 10px; margin-bottom: 10px;">
+                        <button class="d-btn" style="flex: 1; padding: 8px; font-size: 12px;" onclick="definirPasso(10)">10</button>
+                        <button class="d-btn" style="flex: 1; padding: 8px; font-size: 12px;" onclick="definirPasso(100)">100</button>
+                        <button class="d-btn" style="flex: 1; padding: 8px; font-size: 12px;" onclick="definirPasso(500)">500</button>
+                        <button class="d-btn" style="flex: 1; padding: 8px; font-size: 12px;" onclick="definirPasso(1000)">1000</button>
+                    </div>
+
+                    <input type="number" id="qtd-passos" value="500" style="width: 100%; text-align: center; font-family: var(--font-mono); font-size: 18px; color: var(--neon-blue);">
+                </div>
+
+                <div class="d-pad">
+                    <div class="d-vazio"></div>
+                    <button class="d-btn" onclick="moverEixo('Y', 1)">Y +</button>
+                    <div class="d-vazio"></div>
+                    
+                    <button class="d-btn" onclick="moverEixo('X', -1)">X -</button>
+                    <button class="d-btn" style="background:#dc3545; color: white;" onclick="enviarHoming()">Zerar<br>(HOME)</button>
+                    <button class="d-btn" onclick="moverEixo('X', 1)">X +</button>
+                    
+                    <div class="d-vazio"></div>
+                    <button class="d-btn" onclick="moverEixo('Y', -1)">Y -</button>
+                    <div class="d-vazio"></div>
+                </div>
+            </section>
+    
+            <section class="card map-container-card">
+                <div id="mapa" onclick="cliqueMapa(event)">
+                    <div class="radar-sweep"></div>
+                    <svg id="contorno-mapa" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+                    <div id="laser-pointer" class="map-point"></div>
+                    
+                    <div style="position:absolute; bottom:20px; left:20px; font-family:var(--font-mono); font-size:10px; color:rgba(255,255,255,0.2); pointer-events:none;">
+                        ÁREA DE TRABALHO<br>CLIQUE PARA ENVIAR COORDENADAS
+                    </div>
+                </div>
+            </section>
+    
+            <div class="right-column">
+                <section class="card" style="flex: 1;">
+                    <h2 class="card-title">Destinos e Cidades</h2>
+                    <div class="mapa-ativo-tag">
+                        <span>Mapa montado</span>
+                        <b id="rotulo-mapa">—</b>
+                    </div>
+                    <div id="aviso-calib" class="aviso-calib pendente">Carregando calibração...</div>
+                    <p style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Os destinos abaixo pertencem a este mapa. Trocar o mapa na tela de calibração troca a lista.</p>
+                    
+                    <div class="control-group">
+                        <select id="cidades" onchange="irCidadeSelecionada(this.value)">
+                            <option value="" disabled selected>Carregando cidades...</option>
+                        </select>
+                    </div>
+                    
+                    <div style="border-top: 1px solid #444; padding-top: 20px; margin-top: 15px;">
+                        <h2 class="card-title">Registar Novo Ponto</h2>
+                        <input type="text" id="nome-cidade" placeholder="Nome da cidade/ponto" style="margin-bottom:10px;">
+                        <button class="btn-save" onclick="salvarAtualComoCidade()">GRAVAR POSIÇÃO ATUAL</button>
+                    </div>
+                    
+                    <button class="btn-laser" style="margin-top:20px" onclick="pararMaquina()">PARADA DE EMERGÊNCIA</button>
+                </section>
+            </div>
+        </main>
+    </div>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="../config.js"></script>
+    <script src="../calibracao.js"></script>
+
+    <script>
+
+        let database;
+        let posicaoXAtual = 0;
+        let posicaoYAtual = 0;
+        let bancoDeCidades = {};
+        let mapaAtivo = MAPA_PADRAO;
+        let calib = { p1: null, p2: null, p3: null };
+        let refPontos = null, refCalib = null;
+
+        function fazerLogin() {
+            const user = document.getElementById('login-user').value;
+            const pass = document.getElementById('login-pass').value;
+
+            if (user === "admin" && pass === "laser123") {
+                document.getElementById('login-screen').style.display = "none";
+                document.getElementById('app-content').style.display = "flex";
+                
+                // Inicia o Firebase APÓS o login
+                firebase.initializeApp(firebaseConfig);
+                database = firebase.database();
+                document.getElementById('st').innerText = "CONECTADO";
+                document.getElementById('status-dot').style.background = "var(--neon-blue)";
+                document.getElementById('status-dot').style.boxShadow = "0 0 10px var(--neon-blue)";
+                
+                iniciarSistema();
+            } else {
+                document.getElementById('login-erro').style.display = "block";
+            }
+        }
+
+        function iniciarSistema() {
+            // Escuta a Posição X da Máquina em tempo real
+            database.ref('maquina/eixoX').on('value', (snap) => {
+                posicaoXAtual = snap.val() || 0;
+                document.getElementById('vP').innerText = posicaoXAtual;
+                atualizarPontoNoMapa();
+            });
+
+            // Escuta a Posição Y da Máquina em tempo real
+            database.ref('maquina/eixoY').on('value', (snap) => {
+                posicaoYAtual = snap.val() || 0;
+                document.getElementById('vT').innerText = posicaoYAtual;
+                atualizarPontoNoMapa();
+            });
+
+            // Qual mapa está montado na máquina. Definido na tela de
+            // calibração; calibração e pontos salvos pertencem a esse mapa.
+            database.ref('maquina/mapaAtivo').on('value', (snap) => {
+                mapaAtivo = MAPAS[snap.val()] ? snap.val() : MAPA_PADRAO;
+                document.getElementById('rotulo-mapa').innerText = MAPAS[mapaAtivo].nome;
+                ouvirDadosDoMapa();
+            });
+        }
+
+        // Religa as escutas ao trocar de mapa. Sem o .off() os listeners
+        // antigos continuariam vivos e misturariam pontos de mapas diferentes.
+        function ouvirDadosDoMapa() {
+            if (refPontos) refPontos.off();
+            if (refCalib) refCalib.off();
+
+            refCalib = database.ref(caminhoMapa(mapaAtivo) + '/calibracao');
+            refCalib.on('value', (snap) => {
+                const v = snap.val() || {};
+                calib.p1 = v.p1 || null;
+                calib.p2 = v.p2 || null;
+                calib.p3 = v.p3 || null;
+                atualizarAvisoCalibracao();
+            });
+
+            refPontos = database.ref(caminhoMapa(mapaAtivo) + '/pontos');
+            refPontos.on('value', (snapshot) => {
+                const select = document.getElementById('cidades');
+                select.innerHTML = '<option value="" disabled selected>Selecionar destino...</option>';
+                bancoDeCidades = {};
+
+                snapshot.forEach((child) => {
+                    let id = child.key;
+                    let dados = child.val();
+                    bancoDeCidades[id] = dados;
+
+                    let opt = document.createElement("option");
+                    opt.value = id;
+                    opt.text = dados.nome;
+                    select.appendChild(opt);
+                });
+            });
+        }
+
+        // ---------- PROJEÇÃO DO CONTORNO NO RADAR ----------
+        // A malha é a mesma que a tela de calibração desenha no mapa real.
+        // Aqui cada vértice passa por coordParaPassos (a calibração) e depois
+        // por passosParaPercent (a orientação da mesa), então o contorno aparece
+        // exatamente onde a máquina acredita que ele está.
+        const malhasEmCache = {};
+
+        function obterMalha(idMapa) {
+            if (malhasEmCache[idMapa]) return Promise.resolve(malhasEmCache[idMapa]);
+            const def = MAPAS[idMapa];
+            if (!def) return Promise.reject(new Error('mapa desconhecido'));
+            return fetch(def.malha)
+                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(g => { malhasEmCache[idMapa] = g; return g; });
+        }
+
+        // GeoJSON traz Polygon ou MultiPolygon; os dois viram uma lista de anéis.
+        function anelsDaGeometria(geom) {
+            if (!geom) return [];
+            if (geom.type === 'Polygon') return geom.coordinates;
+            if (geom.type === 'MultiPolygon') {
+                return geom.coordinates.reduce((acc, poly) => acc.concat(poly), []);
+            }
+            return [];
+        }
+
+        function projetarContorno() {
+            const svg = document.getElementById('contorno-mapa');
+            const t = calcularTransformacao();
+            const q = t ? qualidadeCalibracao() : null;
+
+            // Calibração instável projetaria um contorno gigante e sem sentido;
+            // melhor não desenhar nada do que desenhar uma mentira convincente.
+            const instavel = q && q.tipo === 'eixos' &&
+                             (q.ampX > AMPLIFICACAO_MAXIMA || q.ampY > AMPLIFICACAO_MAXIMA);
+
+            if (!t || instavel) { svg.innerHTML = ''; return; }
+
+            obterMalha(mapaAtivo).then(geo => {
+                const partes = [];
+                (geo.features || []).forEach(ft => {
+                    anelsDaGeometria(ft.geometry).forEach(anel => {
+                        const pts = [];
+                        for (const par of anel) {
+                            const p = coordParaPassos(par[1], par[0]);   // [lon, lat]
+                            if (!p) continue;
+                            const pc = passosParaPercent(p.x, p.y);
+                            pts.push(pc.x.toFixed(2) + ',' + pc.y.toFixed(2));
+                        }
+                        if (pts.length > 2) {
+                            partes.push('<polygon points="' + pts.join(' ') + '"/>');
+                        }
+                    });
+                });
+                svg.innerHTML = partes.join('');
+            }).catch(err => {
+                console.warn('Contorno não projetado:', err);
+                svg.innerHTML = '';
+            });
+        }
+
+        function atualizarAvisoCalibracao() {
+            const el = document.getElementById('aviso-calib');
+            const t = calcularTransformacao();
+            projetarContorno();
+            if (t) {
+                el.className = 'aviso-calib ok';
+                el.innerText = 'Calibrado com ' + t.pontos + ' pontos — contorno do mapa projetado no radar.';
+            } else {
+                el.className = 'aviso-calib pendente';
+                el.innerText = 'Sem calibração para este mapa — pontos salvos guardam só os passos.';
+            }
+        }
+
+        // Move a bolinha vermelha no mapa com base na coordenada real do motor
+        function atualizarPontoNoMapa() {
+            const pointer = document.getElementById('laser-pointer');
+
+            // A máquina pode reportar uma posição fora do curso configurado.
+            // Antes isso era apenas cortado e a bolinha ficava grudada no canto,
+            // parecendo que o mapa é que estava errado. Agora ela fica âmbar.
+            const foraDoCurso = posicaoXAtual < 0 || posicaoXAtual > PASSOS_MAX_X ||
+                                posicaoYAtual < 0 || posicaoYAtual > PASSOS_MAX_Y;
+            pointer.classList.toggle('fora', foraDoCurso);
+            pointer.title = foraDoCurso
+                ? 'Fora do curso configurado (X 0-' + PASSOS_MAX_X + ', Y 0-' + PASSOS_MAX_Y + ')'
+                : 'X: ' + posicaoXAtual + '   Y: ' + posicaoYAtual;
+
+            // Mesma conversão usada para projetar o contorno do mapa (config.js)
+            const pos = passosParaPercent(posicaoXAtual, posicaoYAtual);
+            let percentX = Math.max(0, Math.min(100, pos.x));
+            let percentY = Math.max(0, Math.min(100, pos.y));
+
+            // O clamp mantém a bolinha inteira dentro da borda: em 0% e 100% o
+            // centro dela cai exatamente sobre a linha e metade era cortada.
+            const raio = 6; // metade dos 12px de .map-point
+            pointer.style.left = 'clamp(' + raio + 'px, ' + percentX + '%, calc(100% - ' + raio + 'px))';
+            pointer.style.top  = 'clamp(' + raio + 'px, ' + percentY + '%, calc(100% - ' + raio + 'px))';
+        }
+        
+        function definirPasso(valor) {
+            document.getElementById('qtd-passos').value = valor;
+        }
+        
+        function moverEixo(eixo, direcao) {
+            let inputPassos = document.getElementById('qtd-passos').value;
+            let quantidade = parseInt(inputPassos);
+
+            if (isNaN(quantidade) || quantidade <= 0) {
+                alert("Por favor, digite uma quantidade válida.");
+                return;
+            }
+
+            let posBase = (eixo === 'X') ? posicaoXAtual : posicaoYAtual;
+            let novoAlvo = posBase + (quantidade * direcao);
+            
+            // --- PROTEÇÃO NO SITE ---
+            // Usa o mesmo limite que o mapa desenha (config.js). Antes o Y aqui
+            // era 2000 enquanto o mapa desenhava até 1160: dava para mandar a
+            // máquina além da borda e a bolinha ficava grudada no canto.
+            let limiteMaximo = (eixo === 'X') ? PASSOS_MAX_X : PASSOS_MAX_Y;
+            
+            if (novoAlvo > limiteMaximo) {
+                novoAlvo = limiteMaximo;
+                alert(`Atenção: Atingiu o limite máximo mecânico do Eixo ${eixo}!`);
+            }
+            if (novoAlvo < 0) {
+                novoAlvo = 0;
+                alert(`Atenção: Não pode retroceder além do ponto zero (Homing).`);
+            }
+            
+            database.ref('maquina/alvo' + eixo).set(novoAlvo);
+            document.getElementById('st').innerText = `MOVENDO ${eixo} PARA ${novoAlvo}`;
+        }
+
+        function enviarHoming() {
+            if(confirm("Deseja fazer o Homing (Retornar a máquina ao ponto zero)?")) {
+                database.ref('maquina/comandoHoming').set(true);
+                document.getElementById('st').innerText = "CALIBRANDO HOME...";
+            }
+        }
+        
+        function cliqueMapa(event) {
+            const mapa = document.getElementById('mapa');
+            const rect = mapa.getBoundingClientRect();
+            
+            // Posição do clique em pixels
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+        
+            // Regra de 3 para descobrir a percentagem do clique (0.0 a 1.0)
+            let calcX = x / rect.width;
+            let calcY = y / rect.height;
+        
+            // --- ORIENTAÇÃO --- (mesmas constantes usadas para desenhar a bolinha,
+            // então as duas não têm mais como divergir)
+            if (INVERTER_X) calcX = 1 - calcX;
+            if (INVERTER_Y) calcY = 1 - calcY;
+        
+            // Multiplica pelos limites físicos
+            let alvoX = Math.round(calcX * PASSOS_MAX_X);
+            let alvoY = Math.round(calcY * PASSOS_MAX_Y);
+            
+            // Garante que não passa dos limites do software
+            alvoX = Math.max(0, Math.min(PASSOS_MAX_X, alvoX));
+            alvoY = Math.max(0, Math.min(PASSOS_MAX_Y, alvoY));
+            
+            // Envia para o banco de dados
+            database.ref('maquina/alvoX').set(alvoX);
+            database.ref('maquina/alvoY').set(alvoY);
+            
+            document.getElementById('st').innerText = `ALVO MAPA: X:${alvoX} Y:${alvoY}`;
+        }
+        
+        // --- GESTÃO DE CIDADES ---
+        function salvarAtualComoCidade() {
+            const nome = document.getElementById('nome-cidade').value.trim();
+            if (!nome) return alert("Digite o nome do ponto/cidade!");
+            
+            // Guarda os passos e, se o mapa estiver calibrado, também a
+            // coordenada geográfica. A coordenada é a que sobrevive: se você
+            // recalibrar (remontou o mapa um pouco torto), os passos antigos
+            // apontam para o lugar errado, mas a lat/lon continua certa.
+            const registro = { nome: nome, x: posicaoXAtual, y: posicaoYAtual };
+            const c = passosParaCoord(posicaoXAtual, posicaoYAtual);
+            if (c) { registro.lat = c.lat; registro.lon = c.lon; }
+
+            database.ref(caminhoMapa(mapaAtivo) + '/pontos').push().set(registro).then(() => {
+                document.getElementById('nome-cidade').value = "";
+                alert(c
+                    ? "Ponto guardado com coordenada real:\n" + c.lat.toFixed(6) + ", " + c.lon.toFixed(6)
+                    : "Ponto guardado com os passos atuais.\n\nSem calibração deste mapa não dá para saber a coordenada real — se recalibrar, este ponto sai do lugar.");
+            });
+        }
+
+        function irCidadeSelecionada(idSelecionado) {
+            if (!idSelecionado || !bancoDeCidades[idSelecionado]) return;
+            const destino = bancoDeCidades[idSelecionado];
+
+            // Coordenada real tem prioridade sobre os passos gravados: ela
+            // continua válida depois de uma recalibração, os passos não.
+            let alvo = null;
+            if (destino.lat !== undefined && destino.lon !== undefined) {
+                alvo = coordParaPassos(destino.lat, destino.lon);
+            }
+            if (!alvo) alvo = { x: destino.x, y: destino.y };
+
+            if (alvo.x < 0 || alvo.x > PASSOS_MAX_X || alvo.y < 0 || alvo.y > PASSOS_MAX_Y) {
+                alert("\"" + destino.nome + "\" cai fora do curso da máquina.\n\n" +
+                      "Convertido: X " + alvo.x + " / Y " + alvo.y + "\n" +
+                      "Curso: X 0-" + PASSOS_MAX_X + ", Y 0-" + PASSOS_MAX_Y + "\n\nNada foi enviado.");
+                return;
+            }
+
+            database.ref('maquina/alvoX').set(alvo.x);
+            database.ref('maquina/alvoY').set(alvo.y);
+            document.getElementById('st').innerText = `INDO PARA: ${destino.nome.toUpperCase()}`;
+        }
+
+        // Função extra de segurança
+        function pararMaquina() {
+            // Manda o alvo ser exatamente onde ela está agora, forçando a parada imediata
+            database.ref('maquina/alvoX').set(posicaoXAtual);
+            database.ref('maquina/alvoY').set(posicaoYAtual);
+            document.getElementById('st').innerText = "PARADA DE EMERGÊNCIA ACIONADA!";
+        }
+    </script>
+</body>
+</html>

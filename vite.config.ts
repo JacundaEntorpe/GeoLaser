@@ -17,11 +17,13 @@ export default defineConfig(({mode}) => {
     },
     build: {
       rollupOptions: {
-        // O Vite só empacota index.html por padrão. Sem declarar botao.html
-        // aqui ele nunca chega ao dist/ e a rota devolve 404 em produção.
+        // O Vite só empacota index.html por padrão. Sem declarar as páginas
+        // de dev/ aqui elas nunca chegam ao dist/ e a rota devolve 404 em
+        // produção.
         input: {
-          painel: path.resolve(__dirname, 'index.html'),
-          botao: path.resolve(__dirname, 'botao.html'),
+          home: path.resolve(__dirname, 'index.html'),
+          painel: path.resolve(__dirname, 'dev/painel.html'),
+          calibracao: path.resolve(__dirname, 'dev/calibracao.html'),
         },
       },
     },
