@@ -2,440 +2,667 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Controle de Eixos - CNC/Laser</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="estilo.css">
+    <!-- user-scalable=no: o tablet fica fixo ao lado da máquina e um
+         pinch acidental deixaria a interface torta para o próximo visitante. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1d5138">
+    <title>GeoLaser — Ponta Grossa</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bitter:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="estilo-eco.css">
 </head>
 <body>
-    <div id="login-screen">
-        <div class="login-box">
-            <h2 style="color: white; margin-bottom: 20px;">ACESSO RESTRITO</h2>
-            <input type="text" id="login-user" placeholder="Usuário">
-            <input type="password" id="login-pass" placeholder="Senha">
-            <button class="btn-laser" style="background: var(--neon-blue); box-shadow: 0 4px 15px rgba(0,212,255,0.3);" onclick="fazerLogin()">ENTRAR NO SISTEMA</button>
-            <p id="login-erro" style="color: var(--neon-red); font-size: 12px; margin-top: 15px; display: none;">Credenciais incorretas!</p>
+    <header class="topo">
+        <div class="marca">
+            GEO<span>LASER</span>
+            <small id="marca-sub">Ponta Grossa · Paraná</small>
         </div>
-    </div>
+        <div class="estado ligando" id="estado">
+            <span class="ponto-estado"></span>
+            <span id="estado-texto">Conectando à máquina…</span>
+        </div>
+    </header>
 
-    <div id="app-content">
-        <header>
-            <div>
-                <h1>CONTROLE MÁQUINA <span style="color:var(--neon-blue)">— CNC/LASER</span></h1>
+    <main class="palco">
+        <section class="mapa-caixa">
+            <div id="mapa"></div>
+            <div class="legenda">
+                <span><i class="i-laser"></i>Laser agora</span>
+                <span><i class="i-destino"></i>Destino</span>
             </div>
-            <div class="header-right">
-                <a class="nav-link" href="botao.html">Calibração Geo →</a>
-                <div class="status-badge">
-                    <div class="status-dot" id="status-dot"></div>
-                    <span id="st">AGUARDANDO...</span>
+        </section>
+
+        <aside class="lateral">
+            <!-- ============ VISTA: NAVEGAR ============ -->
+            <div class="vista" id="vista-navegar">
+                <div class="busca">
+                    <div class="campo-busca">
+                        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                            <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path>
+                        </svg>
+                        <input id="campo-busca" type="search" autocomplete="off" autocorrect="off"
+                               spellcheck="false" enterkeyhint="search"
+                               placeholder="Buscar um lugar de Ponta Grossa…"
+                               aria-label="Buscar um lugar">
+                        <button class="limpar-busca" id="limpar-busca" hidden aria-label="Limpar busca">✕</button>
+                    </div>
+                    <div class="sugestoes" id="sugestoes" hidden role="listbox"></div>
+                </div>
+
+                <div class="filtros" id="filtros"></div>
+                <div class="blocos" id="blocos"></div>
+            </div>
+
+            <!-- ============ VISTA: FICHA DO LUGAR ============ -->
+            <div class="vista ficha" id="vista-ficha" hidden>
+                <div class="ficha-topo" id="ficha-topo">
+                    <button class="voltar" id="voltar">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M15 5l-7 7 7 7"></path>
+                        </svg>
+                        Voltar
+                    </button>
+                </div>
+                <div class="ficha-corpo">
+                    <span class="etiqueta" id="ficha-etiqueta"></span>
+                    <h2 id="ficha-nome"></h2>
+                    <p id="ficha-resumo"></p>
+                    <div class="coordenada" id="ficha-coord"></div>
+                    <a class="fonte-texto" id="ficha-fonte" target="_blank" rel="noopener" hidden>Ler mais na Wikipédia</a>
+                    <div class="galeria" id="ficha-galeria" hidden></div>
+                    <div class="status-laser" id="ficha-status"></div>
                 </div>
             </div>
-        </header>
+        </aside>
+    </main>
 
-        <main class="dashboard-grid grid-painel">
-            
-            <section class="card">
-                <h2 class="card-title">Posição Atual & Controles</h2>
-                
-                <div class="control-group">
-                    <div class="control-label">
-                        <span>EIXO X (Passos)</span>
-                        <span id="vP">0</span>
-                    </div>
-                    <div class="control-label">
-                        <span>EIXO Y (Passos)</span>
-                        <span id="vT">0</span>
-                    </div>
-                </div>
+    <footer class="rodape">
+        Mapa e lugares: OpenStreetMap · Wikipédia · Wikimedia Commons — Contorno municipal: IBGE
+        <span id="nota-catalogo" hidden> · exibindo o catálogo inicial do sistema</span>
+    </footer>
 
-                <div style="margin-top: 15px; margin-bottom: 20px; padding: 15px; background: var(--card-alt); border-radius: 12px; border: 1px solid #444;">
-                    <label style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px;">Quantidade de Passos</label>
-                    
-                    <div style="display: flex; gap: 8px; margin-top: 10px; margin-bottom: 10px;">
-                        <button class="d-btn" style="flex: 1; padding: 8px; font-size: 12px;" onclick="definirPasso(10)">10</button>
-                        <button class="d-btn" style="flex: 1; padding: 8px; font-size: 12px;" onclick="definirPasso(100)">100</button>
-                        <button class="d-btn" style="flex: 1; padding: 8px; font-size: 12px;" onclick="definirPasso(500)">500</button>
-                        <button class="d-btn" style="flex: 1; padding: 8px; font-size: 12px;" onclick="definirPasso(1000)">1000</button>
-                    </div>
-
-                    <input type="number" id="qtd-passos" value="500" style="width: 100%; text-align: center; font-family: var(--font-mono); font-size: 18px; color: var(--neon-blue);">
-                </div>
-
-                <div class="d-pad">
-                    <div class="d-vazio"></div>
-                    <button class="d-btn" onclick="moverEixo('Y', 1)">Y +</button>
-                    <div class="d-vazio"></div>
-                    
-                    <button class="d-btn" onclick="moverEixo('X', -1)">X -</button>
-                    <button class="d-btn" style="background:#dc3545; color: white;" onclick="enviarHoming()">Zerar<br>(HOME)</button>
-                    <button class="d-btn" onclick="moverEixo('X', 1)">X +</button>
-                    
-                    <div class="d-vazio"></div>
-                    <button class="d-btn" onclick="moverEixo('Y', -1)">Y -</button>
-                    <div class="d-vazio"></div>
-                </div>
-            </section>
-    
-            <section class="card map-container-card">
-                <div id="mapa" onclick="cliqueMapa(event)">
-                    <div class="radar-sweep"></div>
-                    <svg id="contorno-mapa" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
-                    <div id="laser-pointer" class="map-point"></div>
-                    
-                    <div style="position:absolute; bottom:20px; left:20px; font-family:var(--font-mono); font-size:10px; color:rgba(255,255,255,0.2); pointer-events:none;">
-                        ÁREA DE TRABALHO<br>CLIQUE PARA ENVIAR COORDENADAS
-                    </div>
-                </div>
-            </section>
-    
-            <div class="right-column">
-                <section class="card" style="flex: 1;">
-                    <h2 class="card-title">Destinos e Cidades</h2>
-                    <div class="mapa-ativo-tag">
-                        <span>Mapa montado</span>
-                        <b id="rotulo-mapa">—</b>
-                    </div>
-                    <div id="aviso-calib" class="aviso-calib pendente">Carregando calibração...</div>
-                    <p style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Os destinos abaixo pertencem a este mapa. Trocar o mapa na tela de calibração troca a lista.</p>
-                    
-                    <div class="control-group">
-                        <select id="cidades" onchange="irCidadeSelecionada(this.value)">
-                            <option value="" disabled selected>Carregando cidades...</option>
-                        </select>
-                    </div>
-                    
-                    <div style="border-top: 1px solid #444; padding-top: 20px; margin-top: 15px;">
-                        <h2 class="card-title">Registar Novo Ponto</h2>
-                        <input type="text" id="nome-cidade" placeholder="Nome da cidade/ponto" style="margin-bottom:10px;">
-                        <button class="btn-save" onclick="salvarAtualComoCidade()">GRAVAR POSIÇÃO ATUAL</button>
-                    </div>
-                    
-                    <button class="btn-laser" style="margin-top:20px" onclick="pararMaquina()">PARADA DE EMERGÊNCIA</button>
-                </section>
-            </div>
-        </main>
-    </div>
-    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="config.js"></script>
     <script src="calibracao.js"></script>
+    <script src="lugares.js"></script>
 
     <script>
+        // ============================================================
+        // Tela pública do GeoLaser. Diferenças de fundo em relação às
+        // telas de /dev, que valem para tudo que vem abaixo:
+        //   - não há login: é um totem, qualquer visitante usa;
+        //   - só existe UMA ação de escrita, mandar o laser para um
+        //     lugar do catálogo. Nada aqui move eixo solto, faz homing
+        //     nem apaga dado nenhum;
+        //   - a máquina pode estar descalibrada ou desligada e a tela
+        //     ainda precisa ser útil: o mapa virtual continua valendo.
+        // ============================================================
 
-        let database;
-        let posicaoXAtual = 0;
-        let posicaoYAtual = 0;
-        let bancoDeCidades = {};
+        // Distância em passos abaixo da qual consideramos que o laser chegou.
+        // A máquina para com folga de alguns passos; exigir igualdade exata
+        // deixaria a ficha eternamente em "indo para".
+        const TOLERANCIA_PASSOS = 4;
+
+        // Nominatim pede no máximo 1 consulta por segundo e um identificador
+        // de quem chama. A espera abaixo também evita disparar busca externa
+        // a cada tecla digitada.
+        const ESPERA_BUSCA_EXTERNA = 700;
+        const ESPERA_BUSCA_LOCAL = 140;
+
+        let database = null;
+        let mapa = null;
+        let camadaMalha = null;
         let mapaAtivo = MAPA_PADRAO;
+        let refCalibracao = null;
+
+        // calibracao.js lê esta variável global; sem ela coordParaPassos
+        // e passosParaCoord não têm de onde tirar a transformação.
         let calib = { p1: null, p2: null, p3: null };
-        let refPontos = null, refCalib = null;
 
-        function fazerLogin() {
-            const user = document.getElementById('login-user').value;
-            const pass = document.getElementById('login-pass').value;
+        let posicaoXAtual = 0, posicaoYAtual = 0;
+        let alvoXAtual = null, alvoYAtual = null;
 
-            if (user === "admin" && pass === "laser123") {
-                document.getElementById('login-screen').style.display = "none";
-                document.getElementById('app-content').style.display = "flex";
-                
-                // Inicia o Firebase APÓS o login
-                firebase.initializeApp(firebaseConfig);
-                database = firebase.database();
-                document.getElementById('st').innerText = "CONECTADO";
-                document.getElementById('status-dot').style.background = "var(--neon-blue)";
-                document.getElementById('status-dot').style.boxShadow = "0 0 10px var(--neon-blue)";
-                
-                iniciarSistema();
+        let lugares = LUGARES_SEMENTE;   // trocado pelo Firebase assim que ele responder
+        let usandoSemente = true;
+        let categoriaFiltro = null;       // null = destaques
+        let lugarAberto = null;
+        // Passos que ESTA tela pediu para o lugar aberto. Sem guardar isso, o
+        // estado seria calculado contra o alvo que já estava no banco: abrir
+        // uma ficha nova anunciava "o laser está apontando para X" no mesmo
+        // instante, porque a máquina ainda estava parada no destino anterior.
+        let passosDestino = null;
+        let marcadorLaser = null, marcadorDestino = null;
+        let temporizadorLocal = null, temporizadorExterno = null;
+        let buscaExternaEmCurso = 0;
+
+        // ============ UTILIDADES ============
+        function esc(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function categoriaDe(lugar) {
+            return CATEGORIAS[lugar && lugar.categoria] || null;
+        }
+
+        function corDe(lugar) {
+            const c = categoriaDe(lugar);
+            return c ? c.cor : '#5a7a63';
+        }
+
+        function svgIcone(lugar, classe) {
+            const c = categoriaDe(lugar);
+            // Lugar vindo do OpenStreetMap não tem categoria; usa um pino.
+            const traco = c ? c.icone : 'M12 21s7-6.4 7-11a7 7 0 1 0-14 0c0 4.6 7 11 7 11Z M12 10h.01';
+            return '<svg class="' + classe + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+                   'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                   '<path d="' + traco + '"></path></svg>';
+        }
+
+        function primeiraFoto(lugar) {
+            return (lugar.fotos && lugar.fotos.length) ? lugar.fotos[0] : null;
+        }
+
+        // ============ ESTADO DO CABEÇALHO ============
+        function definirEstado(texto, classe) {
+            document.getElementById('estado-texto').innerText = texto;
+            document.getElementById('estado').className = 'estado' + (classe ? ' ' + classe : '');
+        }
+
+        // ============ MAPA ============
+        function iniciarMapa() {
+            const def = MAPAS[mapaAtivo] || MAPAS[MAPA_PADRAO];
+            mapa = L.map('mapa', {
+                zoomControl: true,
+                attributionControl: false,
+                // Sem inércia o arrasto com o dedo fica travado no tablet.
+                tap: true
+            }).setView(def.centro, def.zoom);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18
+            }).addTo(mapa);
+
+            setTimeout(() => mapa.invalidateSize(), 120);
+            window.addEventListener('resize', () => mapa.invalidateSize());
+        }
+
+        function carregarMalha(idMapa) {
+            const def = MAPAS[idMapa];
+            if (!def || !mapa) return;
+            if (camadaMalha) { mapa.removeLayer(camadaMalha); camadaMalha = null; }
+
+            fetch(def.malha)
+                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(geo => {
+                    camadaMalha = L.geoJSON(geo, {
+                        style: { color: '#1d5138', weight: 2.5, opacity: .95,
+                                 fillColor: '#2f7d4f', fillOpacity: .08 },
+                        interactive: false
+                    }).addTo(mapa);
+                    // Garante que o Leaflet já conhece o tamanho real da caixa
+                    // antes de enquadrar; senão o município sai fora do quadro.
+                    mapa.invalidateSize();
+                    mapa.fitBounds(camadaMalha.getBounds(), { padding: [24, 24] });
+                })
+                .catch(() => mapa.setView(def.centro, def.zoom));
+        }
+
+        function pino(classe) {
+            return L.divIcon({ className: '', html: '<div class="' + classe + '"></div>',
+                               iconSize: [20, 20], iconAnchor: [10, 10] });
+        }
+
+        function desenharLaser() {
+            if (marcadorLaser) { mapa.removeLayer(marcadorLaser); marcadorLaser = null; }
+            const c = passosParaCoord(posicaoXAtual, posicaoYAtual);
+            if (!c) return;   // sem calibração não há como saber onde o feixe está
+            marcadorLaser = L.marker([c.lat, c.lon], { icon: pino('marca-laser'), zIndexOffset: 500 })
+                .addTo(mapa);
+        }
+
+        function desenharDestino(lugar) {
+            if (marcadorDestino) { mapa.removeLayer(marcadorDestino); marcadorDestino = null; }
+            if (!lugar) return;
+            marcadorDestino = L.marker([lugar.lat, lugar.lon], { icon: pino('marca-destino') })
+                .addTo(mapa)
+                .bindTooltip(lugar.nome, { direction: 'top', offset: [0, -12] });
+        }
+
+        // ============ CATÁLOGO ============
+        function listaVisivel() {
+            if (categoriaFiltro === null) {
+                const d = lugares.filter(l => l.destaque);
+                // Catálogo do Firebase pode não ter nenhum destaque marcado;
+                // nesse caso mostrar tudo é melhor que mostrar uma grade vazia.
+                return d.length ? d : lugares;
+            }
+            return lugares.filter(l => l.categoria === categoriaFiltro);
+        }
+
+        function renderFiltros() {
+            const usadas = ORDEM_CATEGORIAS.filter(c => lugares.some(l => l.categoria === c));
+            const botoes = [{ id: null, nome: 'Destaques' }]
+                .concat(usadas.map(c => ({ id: c, nome: CATEGORIAS[c].nome })));
+
+            document.getElementById('filtros').innerHTML = botoes.map(b =>
+                '<button class="chip" aria-pressed="' + (categoriaFiltro === b.id) + '" ' +
+                'data-cat="' + esc(b.id === null ? '' : b.id) + '">' + esc(b.nome) + '</button>'
+            ).join('');
+
+            document.querySelectorAll('#filtros .chip').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    categoriaFiltro = btn.dataset.cat || null;
+                    renderFiltros();
+                    renderBlocos();
+                    document.getElementById('blocos').scrollTop = 0;
+                });
+            });
+        }
+
+        function renderBlocos() {
+            const alvo = document.getElementById('blocos');
+            const lista = listaVisivel();
+            alvo.innerHTML = lista.map(l => {
+                const foto = primeiraFoto(l);
+                const estilo = foto
+                    ? 'background-image:linear-gradient(rgba(0,0,0,.06),rgba(0,0,0,.06)),url(' + esc(foto) + ')'
+                    : 'background:linear-gradient(150deg,' + corDe(l) + ',' + corDe(l) + 'cc)';
+                return '<button class="bloco' + (foto ? '' : ' sem-foto') + '" data-id="' + esc(l.id) + '" ' +
+                       'aria-pressed="' + (lugarAberto && lugarAberto.id === l.id) + '" style="' + estilo + '">' +
+                       svgIcone(l, 'marca-agua') +
+                       '<span class="tarja">' + esc(l.nome) + '</span></button>';
+            }).join('');
+
+            alvo.querySelectorAll('.bloco').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const l = lugares.find(x => x.id === btn.dataset.id);
+                    if (l) abrirLugar(l);
+                });
+            });
+        }
+
+        // ============ BUSCA ============
+        function fecharSugestoes() {
+            const cx = document.getElementById('sugestoes');
+            cx.hidden = true;
+            cx.innerHTML = '';
+        }
+
+        function linhaSugestao(lugar, rotulo) {
+            const foto = primeiraFoto(lugar);
+            const estilo = foto
+                ? 'background-image:url(' + esc(foto) + ')'
+                : 'background:' + corDe(lugar);
+            return '<button class="sugestao" data-id="' + esc(lugar.id) + '">' +
+                   '<span class="miniatura" style="' + estilo + '">' +
+                   (foto ? '' : svgIcone(lugar, '')) + '</span>' +
+                   '<span><b>' + esc(lugar.nome) + '</b>' +
+                   '<small>' + esc(rotulo) + '</small></span></button>';
+        }
+
+        function renderSugestoes(locais, externos, termo, buscando) {
+            const cx = document.getElementById('sugestoes');
+            let html = '';
+
+            if (locais.length) {
+                html += locais.map(l => {
+                    const c = categoriaDe(l);
+                    return linhaSugestao(l, c ? c.nome : 'Ponta Grossa');
+                }).join('');
+            }
+
+            if (externos.length) {
+                html += '<div class="grupo-sugestao">Encontrado no mapa</div>' +
+                        externos.map(l => linhaSugestao(l, l.detalhe || 'OpenStreetMap')).join('');
+            }
+
+            if (!locais.length && !externos.length) {
+                html += buscando
+                    ? '<div class="sem-resultado">Procurando “' + esc(termo) + '” no mapa…</div>'
+                    : '<div class="sem-resultado"><b>Não encontrei “' + esc(termo) + '”.</b><br>' +
+                      'Tente outro nome, ou escolha um dos lugares em destaque abaixo.</div>';
+            } else if (buscando) {
+                html += '<div class="sem-resultado">Procurando também no mapa…</div>';
+            }
+
+            cx.innerHTML = html;
+            cx.hidden = false;
+
+            cx.querySelectorAll('.sugestao').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.dataset.id;
+                    const l = lugares.find(x => x.id === id) || externos.find(x => x.id === id);
+                    if (l) {
+                        document.getElementById('campo-busca').blur();
+                        abrirLugar(l);
+                    }
+                });
+            });
+        }
+
+        // Consulta o OpenStreetMap só quando o catálogo não deu conta.
+        // bounded=1 + viewbox limitam o resultado à região do mapa físico:
+        // sem isso "Catedral" traria uma catedral de outro estado, que a
+        // máquina não teria como apontar.
+        function buscarNoOpenStreetMap(termo, aoResponder) {
+            const def = MAPAS[mapaAtivo] || MAPAS[MAPA_PADRAO];
+            const caixa = def.viewbox || MAPAS[MAPA_PADRAO].viewbox;
+            const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5' +
+                        '&accept-language=pt-BR&countrycodes=br&bounded=1' +
+                        '&viewbox=' + caixa.join(',') +
+                        '&q=' + encodeURIComponent(termo);
+
+            const meu = ++buscaExternaEmCurso;
+            fetch(url, { headers: { 'Accept': 'application/json' } })
+                .then(r => r.ok ? r.json() : [])
+                .then(dados => {
+                    if (meu !== buscaExternaEmCurso) return;   // resposta atrasada de outra busca
+                    aoResponder((dados || []).map(d => {
+                        const partes = String(d.display_name || '').split(',');
+                        return {
+                            id: 'osm-' + d.place_id,
+                            nome: d.name || partes[0] || termo,
+                            detalhe: partes.slice(1, 3).join(',').trim() || 'OpenStreetMap',
+                            categoria: null,
+                            lat: parseFloat(d.lat),
+                            lon: parseFloat(d.lon),
+                            resumo: '',
+                            fotos: [],
+                            externo: true
+                        };
+                    }).filter(l => isFinite(l.lat) && isFinite(l.lon)));
+                })
+                .catch(() => { if (meu === buscaExternaEmCurso) aoResponder([]); });
+        }
+
+        function aoDigitar() {
+            const termo = document.getElementById('campo-busca').value;
+            document.getElementById('limpar-busca').hidden = !termo;
+
+            clearTimeout(temporizadorLocal);
+            clearTimeout(temporizadorExterno);
+            buscaExternaEmCurso++;   // invalida qualquer resposta externa pendente
+
+            if (!termo.trim()) { fecharSugestoes(); return; }
+
+            temporizadorLocal = setTimeout(() => {
+                const locais = buscarLugares(lugares, termo, 8);
+
+                // O catálogo é a resposta preferida; o OSM só entra quando ele
+                // tem pouco a oferecer e o termo já é específico o bastante.
+                const vaiBuscarFora = locais.length < 3 && termo.trim().length >= 4;
+                renderSugestoes(locais, [], termo, vaiBuscarFora);
+
+                if (vaiBuscarFora) {
+                    temporizadorExterno = setTimeout(() => {
+                        buscarNoOpenStreetMap(termo, externos => {
+                            // O usuário pode ter apagado tudo enquanto esperava.
+                            if (document.getElementById('campo-busca').value !== termo) return;
+                            renderSugestoes(locais, externos, termo, false);
+                        });
+                    }, ESPERA_BUSCA_EXTERNA);
+                }
+            }, ESPERA_BUSCA_LOCAL);
+        }
+
+        // ============ ABRIR UM LUGAR ============
+        function abrirLugar(lugar) {
+            lugarAberto = lugar;
+
+            fecharSugestoes();
+            document.getElementById('campo-busca').value = '';
+            document.getElementById('limpar-busca').hidden = true;
+
+            document.getElementById('vista-navegar').hidden = true;
+            document.getElementById('vista-ficha').hidden = false;
+            document.getElementById('vista-ficha').scrollTop = 0;
+
+            renderFicha(lugar);
+            desenharDestino(lugar);
+            mapa.flyTo([lugar.lat, lugar.lon], Math.max(mapa.getZoom(), 13), { duration: .9 });
+
+            enviarLaserPara(lugar);
+        }
+
+        function fecharLugar() {
+            lugarAberto = null;
+            passosDestino = null;
+            document.getElementById('vista-ficha').hidden = true;
+            document.getElementById('vista-navegar').hidden = false;
+            renderBlocos();
+        }
+
+        function renderFicha(lugar) {
+            const foto = primeiraFoto(lugar);
+            const topo = document.getElementById('ficha-topo');
+            const cat = categoriaDe(lugar);
+
+            topo.style.cssText = foto
+                ? 'background-image:url(' + esc(foto) + ')'
+                : 'background:linear-gradient(150deg,' + corDe(lugar) + ',' + corDe(lugar) + 'bb)';
+            // A marca d'água antiga fica no HTML do topo junto com o botão
+            // voltar; recriar só o ícone evita apagar o botão.
+            topo.querySelectorAll('.marca-agua').forEach(n => n.remove());
+            if (!foto) topo.insertAdjacentHTML('beforeend', svgIcone(lugar, 'marca-agua'));
+
+            const etiqueta = document.getElementById('ficha-etiqueta');
+            etiqueta.innerText = cat ? cat.nome : 'Encontrado no mapa';
+            etiqueta.style.background = corDe(lugar);
+
+            document.getElementById('ficha-nome').innerText = lugar.nome;
+
+            const resumo = document.getElementById('ficha-resumo');
+            resumo.innerText = lugar.resumo || (lugar.externo
+                ? 'Lugar encontrado no OpenStreetMap. Ele ainda não está no catálogo do GeoLaser, então não temos texto nem fotos — mas o laser aponta para lá do mesmo jeito.'
+                : 'Ainda sem descrição.');
+
+            document.getElementById('ficha-coord').innerText =
+                lugar.lat.toFixed(5) + ', ' + lugar.lon.toFixed(5);
+
+            const fonte = document.getElementById('ficha-fonte');
+            fonte.hidden = !lugar.fonte;
+            if (lugar.fonte) fonte.href = lugar.fonte;
+
+            const galeria = document.getElementById('ficha-galeria');
+            const extras = (lugar.fotos || []).slice(1);
+            galeria.hidden = extras.length === 0;
+            galeria.innerHTML = extras.map(f =>
+                '<img src="' + esc(f) + '" alt="" loading="lazy">').join('');
+        }
+
+        // ============ COMANDAR O LASER ============
+        function enviarLaserPara(lugar) {
+            passosDestino = null;
+
+            if (!database) {
+                return definirStatus('problema', 'Sem conexão com a máquina',
+                    'O mapa aqui na tela continua funcionando, mas o laser não recebe o comando.');
+            }
+
+            const p = coordParaPassos(lugar.lat, lugar.lon);
+            if (!p) {
+                return definirStatus('problema', 'Mapa ainda não calibrado',
+                    'Sem a calibração não dá para converter a coordenada em passos do motor. ' +
+                    'Um responsável precisa calibrar a máquina antes.');
+            }
+
+            if (p.x < 0 || p.x > PASSOS_MAX_X || p.y < 0 || p.y > PASSOS_MAX_Y) {
+                return definirStatus('problema', 'Fora do alcance da máquina',
+                    lugar.nome + ' cai fora da área que o laser consegue percorrer neste mapa. ' +
+                    'Nada foi enviado.');
+            }
+
+            // Escreve o alvo e deixa o ESP conduzir o movimento. O estado
+            // mostrado depois vem de volta do banco, não desta escrita: é o
+            // que a máquina realmente fez que interessa.
+            passosDestino = { x: p.x, y: p.y };
+            Promise.all([
+                database.ref('maquina/alvoX').set(p.x),
+                database.ref('maquina/alvoY').set(p.y)
+            ]).catch(() => definirStatus('problema', 'A máquina recusou o comando',
+                'Não foi possível gravar o destino. Chame um responsável.'));
+
+            definirStatus('indo', 'Levando o laser até lá…',
+                'Acompanhe o ponto vermelho no mapa ao lado e o feixe no mapa de verdade.');
+        }
+
+        function definirStatus(classe, titulo, texto) {
+            const el = document.getElementById('ficha-status');
+            el.className = 'status-laser ' + classe;
+            el.innerHTML = '<b>' + esc(titulo) + '</b>' + esc(texto);
+        }
+
+        // Recalcula o texto de estado sempre que a máquina se mexe.
+        function atualizarStatusMovimento() {
+            if (!lugarAberto || !passosDestino) return;
+            const el = document.getElementById('ficha-status');
+            // Não sobrescreve um aviso de erro com "indo/chegou".
+            if (el.classList.contains('problema')) return;
+            if (alvoXAtual === null || alvoYAtual === null) return;
+
+            // O alvo no banco ainda pode ser o do lugar anterior — a escrita
+            // leva um instante para ir e voltar. Enquanto ele não bater com o
+            // que pedimos, não dá para afirmar nada sobre este lugar.
+            if (alvoXAtual !== passosDestino.x || alvoYAtual !== passosDestino.y) {
+                return definirStatus('indo', 'Enviando o destino à máquina…',
+                    'Assim que ela aceitar, o laser começa a se mover.');
+            }
+
+            const perto = Math.abs(posicaoXAtual - alvoXAtual) <= TOLERANCIA_PASSOS &&
+                          Math.abs(posicaoYAtual - alvoYAtual) <= TOLERANCIA_PASSOS;
+
+            if (perto) {
+                definirStatus('chegou', 'O laser está apontando para ' + lugarAberto.nome,
+                    'Compare o ponto do mapa na tela com o feixe no mapa físico.');
             } else {
-                document.getElementById('login-erro').style.display = "block";
+                definirStatus('indo', 'Levando o laser até lá…',
+                    'Acompanhe o ponto vermelho no mapa ao lado e o feixe no mapa de verdade.');
             }
         }
 
-        function iniciarSistema() {
-            // Escuta a Posição X da Máquina em tempo real
-            database.ref('maquina/eixoX').on('value', (snap) => {
+        // ============ FIREBASE ============
+        function iniciarFirebase() {
+            try {
+                firebase.initializeApp(firebaseConfig);
+                database = firebase.database();
+            } catch (e) {
+                definirEstado('Sem conexão com a máquina', 'problema');
+                return;
+            }
+
+            database.ref('.info/connected').on('value', snap => {
+                if (snap.val()) definirEstado('Máquina conectada', '');
+                else definirEstado('Reconectando…', 'ligando');
+            });
+
+            database.ref('maquina/eixoX').on('value', snap => {
                 posicaoXAtual = snap.val() || 0;
-                document.getElementById('vP').innerText = posicaoXAtual;
-                atualizarPontoNoMapa();
-            });
+                desenharLaser();
+                atualizarStatusMovimento();
+            }, aoFalhar);
 
-            // Escuta a Posição Y da Máquina em tempo real
-            database.ref('maquina/eixoY').on('value', (snap) => {
+            database.ref('maquina/eixoY').on('value', snap => {
                 posicaoYAtual = snap.val() || 0;
-                document.getElementById('vT').innerText = posicaoYAtual;
-                atualizarPontoNoMapa();
-            });
+                desenharLaser();
+                atualizarStatusMovimento();
+            }, aoFalhar);
 
-            // Qual mapa está montado na máquina. Definido na tela de
-            // calibração; calibração e pontos salvos pertencem a esse mapa.
-            database.ref('maquina/mapaAtivo').on('value', (snap) => {
-                mapaAtivo = MAPAS[snap.val()] ? snap.val() : MAPA_PADRAO;
-                document.getElementById('rotulo-mapa').innerText = MAPAS[mapaAtivo].nome;
-                ouvirDadosDoMapa();
-            });
+            database.ref('maquina/alvoX').on('value', snap => {
+                alvoXAtual = snap.val();
+                atualizarStatusMovimento();
+            }, aoFalhar);
+
+            database.ref('maquina/alvoY').on('value', snap => {
+                alvoYAtual = snap.val();
+                atualizarStatusMovimento();
+            }, aoFalhar);
+
+            database.ref('maquina/mapaAtivo').on('value', snap => {
+                aplicarMapaAtivo(snap.val() || MAPA_PADRAO);
+            }, aoFalhar);
+
+            // Catálogo vivo. Enquanto o banco não tiver nada, a semente do
+            // arquivo mantém a tela utilizável — é a diferença entre um totem
+            // funcionando e uma tela vazia na frente do público.
+            database.ref('maquina/lugares').on('value', snap => {
+                const v = snap.val();
+                const lista = v ? Object.keys(v).map(k => Object.assign({ id: k }, v[k])) : [];
+                const validos = lista.filter(l =>
+                    l && l.nome && isFinite(parseFloat(l.lat)) && isFinite(parseFloat(l.lon)));
+
+                if (validos.length) {
+                    validos.forEach(l => { l.lat = parseFloat(l.lat); l.lon = parseFloat(l.lon); });
+                    validos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+                    lugares = validos;
+                    usandoSemente = false;
+                } else {
+                    lugares = LUGARES_SEMENTE;
+                    usandoSemente = true;
+                }
+                // Aviso discreto no rodapé: o visitante não precisa entender,
+                // mas quem cuida da máquina consegue ver de longe que o banco
+                // ainda não foi semeado pelo /dev/lugares.
+                document.getElementById('nota-catalogo').hidden = !usandoSemente;
+                renderFiltros();
+                renderBlocos();
+            }, aoFalhar);
         }
 
-        // Religa as escutas ao trocar de mapa. Sem o .off() os listeners
-        // antigos continuariam vivos e misturariam pontos de mapas diferentes.
-        function ouvirDadosDoMapa() {
-            if (refPontos) refPontos.off();
-            if (refCalib) refCalib.off();
+        function aoFalhar() {
+            definirEstado('Sem conexão com a máquina', 'problema');
+        }
 
-            refCalib = database.ref(caminhoMapa(mapaAtivo) + '/calibracao');
-            refCalib.on('value', (snap) => {
+        function aplicarMapaAtivo(id) {
+            const novo = MAPAS[id] ? id : MAPA_PADRAO;
+            document.getElementById('marca-sub').innerText =
+                (MAPAS[novo].nome || '').replace(' / ', ' · ');
+            // O contorno já foi desenhado no arranque, para a tela não ficar
+            // vazia caso o Firebase demore ou nem responda. Só vale redesenhar
+            // se o mapa físico realmente for outro.
+            if (novo !== mapaAtivo || !camadaMalha) carregarMalha(novo);
+            mapaAtivo = novo;
+            ouvirCalibracao();
+        }
+
+        function ouvirCalibracao() {
+            if (!database) return;
+            if (refCalibracao) refCalibracao.off();
+            refCalibracao = database.ref(caminhoMapa(mapaAtivo) + '/calibracao');
+            refCalibracao.on('value', snap => {
                 const v = snap.val() || {};
                 calib.p1 = v.p1 || null;
                 calib.p2 = v.p2 || null;
                 calib.p3 = v.p3 || null;
-                atualizarAvisoCalibracao();
-            });
-
-            refPontos = database.ref(caminhoMapa(mapaAtivo) + '/pontos');
-            refPontos.on('value', (snapshot) => {
-                const select = document.getElementById('cidades');
-                select.innerHTML = '<option value="" disabled selected>Selecionar destino...</option>';
-                bancoDeCidades = {};
-
-                snapshot.forEach((child) => {
-                    let id = child.key;
-                    let dados = child.val();
-                    bancoDeCidades[id] = dados;
-
-                    let opt = document.createElement("option");
-                    opt.value = id;
-                    opt.text = dados.nome;
-                    select.appendChild(opt);
-                });
-            });
+                desenharLaser();
+                if (lugarAberto) atualizarStatusMovimento();
+            }, aoFalhar);
         }
 
-        // ---------- PROJEÇÃO DO CONTORNO NO RADAR ----------
-        // A malha é a mesma que a tela de calibração desenha no mapa real.
-        // Aqui cada vértice passa por coordParaPassos (a calibração) e depois
-        // por passosParaPercent (a orientação da mesa), então o contorno aparece
-        // exatamente onde a máquina acredita que ele está.
-        const malhasEmCache = {};
+        // ============ INÍCIO ============
+        document.getElementById('campo-busca').addEventListener('input', aoDigitar);
+        document.getElementById('campo-busca').addEventListener('focus', aoDigitar);
+        document.getElementById('limpar-busca').addEventListener('click', () => {
+            document.getElementById('campo-busca').value = '';
+            document.getElementById('limpar-busca').hidden = true;
+            fecharSugestoes();
+            document.getElementById('campo-busca').focus();
+        });
+        document.getElementById('voltar').addEventListener('click', fecharLugar);
 
-        function obterMalha(idMapa) {
-            if (malhasEmCache[idMapa]) return Promise.resolve(malhasEmCache[idMapa]);
-            const def = MAPAS[idMapa];
-            if (!def) return Promise.reject(new Error('mapa desconhecido'));
-            return fetch(def.malha)
-                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-                .then(g => { malhasEmCache[idMapa] = g; return g; });
-        }
+        // Tocar fora fecha a lista de sugestões.
+        document.addEventListener('click', e => {
+            if (!e.target.closest('.busca')) fecharSugestoes();
+        });
 
-        // GeoJSON traz Polygon ou MultiPolygon; os dois viram uma lista de anéis.
-        function anelsDaGeometria(geom) {
-            if (!geom) return [];
-            if (geom.type === 'Polygon') return geom.coordinates;
-            if (geom.type === 'MultiPolygon') {
-                return geom.coordinates.reduce((acc, poly) => acc.concat(poly), []);
-            }
-            return [];
-        }
-
-        function projetarContorno() {
-            const svg = document.getElementById('contorno-mapa');
-            const t = calcularTransformacao();
-            const q = t ? qualidadeCalibracao() : null;
-
-            // Calibração instável projetaria um contorno gigante e sem sentido;
-            // melhor não desenhar nada do que desenhar uma mentira convincente.
-            const instavel = q && q.tipo === 'eixos' &&
-                             (q.ampX > AMPLIFICACAO_MAXIMA || q.ampY > AMPLIFICACAO_MAXIMA);
-
-            if (!t || instavel) { svg.innerHTML = ''; return; }
-
-            obterMalha(mapaAtivo).then(geo => {
-                const partes = [];
-                (geo.features || []).forEach(ft => {
-                    anelsDaGeometria(ft.geometry).forEach(anel => {
-                        const pts = [];
-                        for (const par of anel) {
-                            const p = coordParaPassos(par[1], par[0]);   // [lon, lat]
-                            if (!p) continue;
-                            const pc = passosParaPercent(p.x, p.y);
-                            pts.push(pc.x.toFixed(2) + ',' + pc.y.toFixed(2));
-                        }
-                        if (pts.length > 2) {
-                            partes.push('<polygon points="' + pts.join(' ') + '"/>');
-                        }
-                    });
-                });
-                svg.innerHTML = partes.join('');
-            }).catch(err => {
-                console.warn('Contorno não projetado:', err);
-                svg.innerHTML = '';
-            });
-        }
-
-        function atualizarAvisoCalibracao() {
-            const el = document.getElementById('aviso-calib');
-            const t = calcularTransformacao();
-            projetarContorno();
-            if (t) {
-                el.className = 'aviso-calib ok';
-                el.innerText = 'Calibrado com ' + t.pontos + ' pontos — contorno do mapa projetado no radar.';
-            } else {
-                el.className = 'aviso-calib pendente';
-                el.innerText = 'Sem calibração para este mapa — pontos salvos guardam só os passos.';
-            }
-        }
-
-        // Move a bolinha vermelha no mapa com base na coordenada real do motor
-        function atualizarPontoNoMapa() {
-            const pointer = document.getElementById('laser-pointer');
-
-            // A máquina pode reportar uma posição fora do curso configurado.
-            // Antes isso era apenas cortado e a bolinha ficava grudada no canto,
-            // parecendo que o mapa é que estava errado. Agora ela fica âmbar.
-            const foraDoCurso = posicaoXAtual < 0 || posicaoXAtual > PASSOS_MAX_X ||
-                                posicaoYAtual < 0 || posicaoYAtual > PASSOS_MAX_Y;
-            pointer.classList.toggle('fora', foraDoCurso);
-            pointer.title = foraDoCurso
-                ? 'Fora do curso configurado (X 0-' + PASSOS_MAX_X + ', Y 0-' + PASSOS_MAX_Y + ')'
-                : 'X: ' + posicaoXAtual + '   Y: ' + posicaoYAtual;
-
-            // Mesma conversão usada para projetar o contorno do mapa (config.js)
-            const pos = passosParaPercent(posicaoXAtual, posicaoYAtual);
-            let percentX = Math.max(0, Math.min(100, pos.x));
-            let percentY = Math.max(0, Math.min(100, pos.y));
-
-            // O clamp mantém a bolinha inteira dentro da borda: em 0% e 100% o
-            // centro dela cai exatamente sobre a linha e metade era cortada.
-            const raio = 6; // metade dos 12px de .map-point
-            pointer.style.left = 'clamp(' + raio + 'px, ' + percentX + '%, calc(100% - ' + raio + 'px))';
-            pointer.style.top  = 'clamp(' + raio + 'px, ' + percentY + '%, calc(100% - ' + raio + 'px))';
-        }
-        
-        function definirPasso(valor) {
-            document.getElementById('qtd-passos').value = valor;
-        }
-        
-        function moverEixo(eixo, direcao) {
-            let inputPassos = document.getElementById('qtd-passos').value;
-            let quantidade = parseInt(inputPassos);
-
-            if (isNaN(quantidade) || quantidade <= 0) {
-                alert("Por favor, digite uma quantidade válida.");
-                return;
-            }
-
-            let posBase = (eixo === 'X') ? posicaoXAtual : posicaoYAtual;
-            let novoAlvo = posBase + (quantidade * direcao);
-            
-            // --- PROTEÇÃO NO SITE ---
-            // Usa o mesmo limite que o mapa desenha (config.js). Antes o Y aqui
-            // era 2000 enquanto o mapa desenhava até 1160: dava para mandar a
-            // máquina além da borda e a bolinha ficava grudada no canto.
-            let limiteMaximo = (eixo === 'X') ? PASSOS_MAX_X : PASSOS_MAX_Y;
-            
-            if (novoAlvo > limiteMaximo) {
-                novoAlvo = limiteMaximo;
-                alert(`Atenção: Atingiu o limite máximo mecânico do Eixo ${eixo}!`);
-            }
-            if (novoAlvo < 0) {
-                novoAlvo = 0;
-                alert(`Atenção: Não pode retroceder além do ponto zero (Homing).`);
-            }
-            
-            database.ref('maquina/alvo' + eixo).set(novoAlvo);
-            document.getElementById('st').innerText = `MOVENDO ${eixo} PARA ${novoAlvo}`;
-        }
-
-        function enviarHoming() {
-            if(confirm("Deseja fazer o Homing (Retornar a máquina ao ponto zero)?")) {
-                database.ref('maquina/comandoHoming').set(true);
-                document.getElementById('st').innerText = "CALIBRANDO HOME...";
-            }
-        }
-        
-        function cliqueMapa(event) {
-            const mapa = document.getElementById('mapa');
-            const rect = mapa.getBoundingClientRect();
-            
-            // Posição do clique em pixels
-            const x = event.clientX - rect.left;
-            const y = event.clientY - rect.top;
-        
-            // Regra de 3 para descobrir a percentagem do clique (0.0 a 1.0)
-            let calcX = x / rect.width;
-            let calcY = y / rect.height;
-        
-            // --- ORIENTAÇÃO --- (mesmas constantes usadas para desenhar a bolinha,
-            // então as duas não têm mais como divergir)
-            if (INVERTER_X) calcX = 1 - calcX;
-            if (INVERTER_Y) calcY = 1 - calcY;
-        
-            // Multiplica pelos limites físicos
-            let alvoX = Math.round(calcX * PASSOS_MAX_X);
-            let alvoY = Math.round(calcY * PASSOS_MAX_Y);
-            
-            // Garante que não passa dos limites do software
-            alvoX = Math.max(0, Math.min(PASSOS_MAX_X, alvoX));
-            alvoY = Math.max(0, Math.min(PASSOS_MAX_Y, alvoY));
-            
-            // Envia para o banco de dados
-            database.ref('maquina/alvoX').set(alvoX);
-            database.ref('maquina/alvoY').set(alvoY);
-            
-            document.getElementById('st').innerText = `ALVO MAPA: X:${alvoX} Y:${alvoY}`;
-        }
-        
-        // --- GESTÃO DE CIDADES ---
-        function salvarAtualComoCidade() {
-            const nome = document.getElementById('nome-cidade').value.trim();
-            if (!nome) return alert("Digite o nome do ponto/cidade!");
-            
-            // Guarda os passos e, se o mapa estiver calibrado, também a
-            // coordenada geográfica. A coordenada é a que sobrevive: se você
-            // recalibrar (remontou o mapa um pouco torto), os passos antigos
-            // apontam para o lugar errado, mas a lat/lon continua certa.
-            const registro = { nome: nome, x: posicaoXAtual, y: posicaoYAtual };
-            const c = passosParaCoord(posicaoXAtual, posicaoYAtual);
-            if (c) { registro.lat = c.lat; registro.lon = c.lon; }
-
-            database.ref(caminhoMapa(mapaAtivo) + '/pontos').push().set(registro).then(() => {
-                document.getElementById('nome-cidade').value = "";
-                alert(c
-                    ? "Ponto guardado com coordenada real:\n" + c.lat.toFixed(6) + ", " + c.lon.toFixed(6)
-                    : "Ponto guardado com os passos atuais.\n\nSem calibração deste mapa não dá para saber a coordenada real — se recalibrar, este ponto sai do lugar.");
-            });
-        }
-
-        function irCidadeSelecionada(idSelecionado) {
-            if (!idSelecionado || !bancoDeCidades[idSelecionado]) return;
-            const destino = bancoDeCidades[idSelecionado];
-
-            // Coordenada real tem prioridade sobre os passos gravados: ela
-            // continua válida depois de uma recalibração, os passos não.
-            let alvo = null;
-            if (destino.lat !== undefined && destino.lon !== undefined) {
-                alvo = coordParaPassos(destino.lat, destino.lon);
-            }
-            if (!alvo) alvo = { x: destino.x, y: destino.y };
-
-            if (alvo.x < 0 || alvo.x > PASSOS_MAX_X || alvo.y < 0 || alvo.y > PASSOS_MAX_Y) {
-                alert("\"" + destino.nome + "\" cai fora do curso da máquina.\n\n" +
-                      "Convertido: X " + alvo.x + " / Y " + alvo.y + "\n" +
-                      "Curso: X 0-" + PASSOS_MAX_X + ", Y 0-" + PASSOS_MAX_Y + "\n\nNada foi enviado.");
-                return;
-            }
-
-            database.ref('maquina/alvoX').set(alvo.x);
-            database.ref('maquina/alvoY').set(alvo.y);
-            document.getElementById('st').innerText = `INDO PARA: ${destino.nome.toUpperCase()}`;
-        }
-
-        // Função extra de segurança
-        function pararMaquina() {
-            // Manda o alvo ser exatamente onde ela está agora, forçando a parada imediata
-            database.ref('maquina/alvoX').set(posicaoXAtual);
-            database.ref('maquina/alvoY').set(posicaoYAtual);
-            document.getElementById('st').innerText = "PARADA DE EMERGÊNCIA ACIONADA!";
-        }
+        iniciarMapa();
+        carregarMalha(mapaAtivo);
+        renderFiltros();
+        renderBlocos();
+        iniciarFirebase();
     </script>
 </body>
 </html>

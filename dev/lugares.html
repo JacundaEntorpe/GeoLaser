@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lugares — GeoLaser</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="../estilo.css">
+    <style>
+        /* Estilos exclusivos desta tela. O resto vem de estilo.css, o
+           mesmo tema escuro do painel e da calibração. */
+        .grid-lugares { grid-template-columns: minmax(0, 1fr) minmax(380px, 420px); }
+        .lista-lugares { max-height: 460px; overflow-y: auto; margin-top: 12px; }
+        .item-lugar {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 10px; border-radius: 8px; cursor: pointer;
+            border: 1px solid transparent;
+        }
+        .item-lugar:hover { background: var(--card-alt); }
+        .item-lugar.ativo { border-color: var(--neon-blue); background: var(--card-alt); }
+        .item-lugar .thumb {
+            width: 40px; height: 40px; border-radius: 6px; flex: 0 0 auto;
+            background: var(--card-alt); background-size: cover; background-position: center;
+        }
+        .item-lugar .txt { flex: 1 1 auto; min-width: 0; }
+        .item-lugar .txt b { display: block; font-size: 13px; }
+        .item-lugar .txt small { color: var(--text-dim); font-size: 11px; }
+        .item-lugar .sinal { font-size: 10px; color: var(--neon-amber); }
+        .barra-ferramentas { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+        .campo { display: block; font-size: 11px; color: var(--text-dim); margin: 12px 0 4px; }
+        textarea {
+            width: 100%; min-height: 90px; resize: vertical;
+            background: var(--card-alt); color: var(--text-main);
+            border: 1px solid #3a3a3a; border-radius: 8px; padding: 10px;
+            font-family: inherit; font-size: 13px; line-height: 1.5;
+        }
+        /* Alto o bastante para o município caber sem sobrar meia tela de
+           estado vizinho: o contorno de Ponta Grossa é mais alto que largo. */
+        #mapa-lugares { height: 560px; border-radius: 10px; }
+        .pino { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; }
+        .pino.verde { background: var(--neon-green); }
+        .pino.azul  { background: var(--neon-blue); }
+        .contagem { font-size: 12px; color: var(--text-dim); }
+    </style>
+</head>
+<body>
+    <div id="login-screen">
+        <div class="login-box">
+            <h2 style="color: white; margin-bottom: 20px;">ACESSO RESTRITO</h2>
+            <input type="text" id="login-user" placeholder="Usuário">
+            <input type="password" id="login-pass" placeholder="Senha">
+            <button class="btn-laser" style="background: var(--neon-blue); box-shadow: 0 4px 15px rgba(0,212,255,0.3);" onclick="fazerLogin()">ENTRAR NO SISTEMA</button>
+            <p id="login-erro" style="color: var(--neon-red); font-size: 12px; margin-top: 15px; display: none;">Credenciais incorretas!</p>
+        </div>
+    </div>
+
+    <div id="app-content">
+        <header>
+            <div>
+                <h1>LUGARES <span style="color:var(--neon-blue)">— CATÁLOGO PÚBLICO</span></h1>
+            </div>
+            <div class="header-right">
+                <a class="nav-link" href="painel.html">← Painel</a>
+                <a class="nav-link" href="calibracao.html">Calibração →</a>
+                <div class="status-badge">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span id="st">AGUARDANDO...</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard-grid grid-lugares">
+            <section class="card">
+                <h2 class="card-title">Mapa</h2>
+                <p style="font-size:12px; color:var(--text-dim); margin-bottom:10px;">
+                    Clique no mapa para definir a coordenada do lugar em edição.
+                    Este catálogo é o que aparece na tela pública, em <b>/</b>.
+                </p>
+                <div id="mapa-lugares"></div>
+                <div id="aviso-erro" class="aviso aviso-erro" style="display:none; margin-top:12px;"></div>
+            </section>
+
+            <section class="card">
+                <h2 class="card-title">Catálogo</h2>
+
+                <div class="barra-ferramentas">
+                    <button class="btn btn-primary" style="flex:1 1 100%;" onclick="novoLugar()">+ NOVO LUGAR</button>
+                    <button class="btn btn-mini" onclick="semear()">Semear catálogo inicial</button>
+                    <button class="btn btn-mini" onclick="exportar()">Exportar JSON</button>
+                </div>
+                <div class="contagem" id="contagem">Carregando…</div>
+
+                <input type="text" id="filtro" placeholder="Filtrar por nome…" style="margin-top:10px;"
+                       oninput="renderLista()">
+                <div class="lista-lugares" id="lista"></div>
+
+                <hr style="border:0; border-top:1px solid #333; margin:18px 0 4px;">
+
+                <div id="editor">
+                    <p class="vazio">Escolha um lugar da lista ou crie um novo.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="../config.js"></script>
+    <script src="../lugares.js"></script>
+
+    <script>
+        // ============================================================
+        // Cadastro do catálogo público (maquina/lugares).
+        //
+        // Esta tela é a única forma de mudar o que aparece em "/". O arquivo
+        // public/lugares.js é apenas a semente: depois de gravada no banco
+        // pela primeira vez, editar o arquivo não muda mais nada em produção.
+        // ============================================================
+
+        let database = null;
+        let mapa = null;
+        let lugares = {};              // id -> registro, como está no banco
+        let editando = null;           // id em edição, ou null para um novo
+        let coordEditada = null;       // {lat, lon} escolhida no mapa
+        let marcadores = {};
+        let marcadorEdicao = null;
+
+        function fazerLogin() {
+            const user = document.getElementById('login-user').value;
+            const pass = document.getElementById('login-pass').value;
+            if (user !== "admin" || pass !== "laser123") {
+                document.getElementById('login-erro').style.display = "block";
+                return;
+            }
+            document.getElementById('login-screen').style.display = "none";
+            document.getElementById('app-content').style.display = "flex";
+
+            firebase.initializeApp(firebaseConfig);
+            database = firebase.database();
+            document.getElementById('st').innerText = "CONECTADO";
+            document.getElementById('status-dot').style.background = "var(--neon-blue)";
+
+            iniciarMapa();
+            ouvirLugares();
+        }
+
+        function erroFirebase(err) {
+            const box = document.getElementById('aviso-erro');
+            box.style.display = "block";
+            box.innerHTML = "<b>Firebase recusou a operação:</b> " + esc(err.message) +
+                "<br><br>Se aparecer <i>permission_denied</i>, o problema está nas Regras do Realtime Database.";
+            document.getElementById('st').innerText = "ERRO DE PERMISSÃO";
+            document.getElementById('status-dot').style.background = "var(--neon-red)";
+        }
+
+        function esc(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        // ============ MAPA ============
+        function iniciarMapa() {
+            const def = MAPAS[MAPA_PADRAO];
+            mapa = L.map('mapa-lugares').setView(def.centro, def.zoom);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19, attribution: '&copy; OpenStreetMap'
+            }).addTo(mapa);
+
+            fetch(def.malha)
+                .then(r => r.json())
+                .then(geo => {
+                    const c = L.geoJSON(geo, {
+                        style: { color: '#00d4ff', weight: 2, fillOpacity: .05 },
+                        interactive: false
+                    }).addTo(mapa);
+                    // O contêiner só ganha tamanho depois do login. Se o fetch
+                    // voltar antes disso, o Leaflet ainda acha que a área é
+                    // zero e o fitBounds enquadra meio estado em vez do
+                    // município — foi o que aconteceu.
+                    mapa.invalidateSize();
+                    mapa.fitBounds(c.getBounds(), { padding: [20, 20] });
+                })
+                .catch(() => {});
+
+            mapa.on('click', e => {
+                coordEditada = { lat: e.latlng.lat, lon: e.latlng.lng };
+                desenharEdicao();
+                if (document.getElementById('f-lat')) {
+                    document.getElementById('f-lat').value = coordEditada.lat.toFixed(6);
+                    document.getElementById('f-lon').value = coordEditada.lon.toFixed(6);
+                }
+            });
+
+            setTimeout(() => mapa.invalidateSize(), 100);
+        }
+
+        function pino(classe) {
+            return L.divIcon({ className: '', html: '<div class="pino ' + classe + '"></div>',
+                               iconSize: [16, 16], iconAnchor: [8, 8] });
+        }
+
+        function desenharTodos() {
+            Object.values(marcadores).forEach(m => mapa.removeLayer(m));
+            marcadores = {};
+            Object.keys(lugares).forEach(id => {
+                const l = lugares[id];
+                if (!isFinite(l.lat) || !isFinite(l.lon)) return;
+                marcadores[id] = L.marker([l.lat, l.lon], { icon: pino('verde') })
+                    .addTo(mapa).bindTooltip(l.nome)
+                    .on('click', () => editar(id));
+            });
+        }
+
+        function desenharEdicao() {
+            if (marcadorEdicao) { mapa.removeLayer(marcadorEdicao); marcadorEdicao = null; }
+            if (!coordEditada) return;
+            marcadorEdicao = L.marker([coordEditada.lat, coordEditada.lon],
+                { icon: pino('azul'), zIndexOffset: 500 }).addTo(mapa);
+        }
+
+        // ============ FIREBASE ============
+        function ouvirLugares() {
+            database.ref('maquina/lugares').on('value', snap => {
+                lugares = snap.val() || {};
+                renderLista();
+                desenharTodos();
+                const n = Object.keys(lugares).length;
+                document.getElementById('contagem').innerText = n
+                    ? n + ' lugares no banco — é isto que a tela pública mostra.'
+                    : 'Banco vazio. A tela pública está mostrando a semente do arquivo.';
+            }, erroFirebase);
+        }
+
+        // Grava a semente só no que ainda não existe: rodar de novo não
+        // desfaz edição nenhuma feita pelo caminho.
+        function semear() {
+            if (!database) return;
+            const novos = LUGARES_SEMENTE.filter(l => !lugares[l.id]);
+            if (!novos.length) {
+                alert("Todos os " + LUGARES_SEMENTE.length + " lugares da semente já estão no banco.\n\n" +
+                      "Nada a fazer.");
+                return;
+            }
+            if (!confirm("Gravar " + novos.length + " lugares da semente no banco?\n\n" +
+                         "Os que já existem não serão tocados.")) return;
+
+            const lote = {};
+            novos.forEach(l => {
+                lote[l.id] = {
+                    nome: l.nome, categoria: l.categoria,
+                    lat: l.lat, lon: l.lon,
+                    resumo: l.resumo || '', fotos: l.fotos || [],
+                    destaque: !!l.destaque
+                };
+                if (l.fonte) lote[l.id].fonte = l.fonte;
+            });
+            database.ref('maquina/lugares').update(lote)
+                .then(() => alert(novos.length + " lugares gravados."))
+                .catch(erroFirebase);
+        }
+
+        function exportar() {
+            const txt = JSON.stringify(lugares, null, 2);
+            const janela = window.open('', '_blank');
+            janela.document.write('<pre style="white-space:pre-wrap;word-break:break-word">' +
+                esc(txt) + '</pre>');
+            janela.document.title = 'lugares.json';
+        }
+
+        // ============ LISTA ============
+        function renderLista() {
+            const termo = (document.getElementById('filtro').value || '').trim();
+            const t = normalizarTexto(termo);
+            const ids = Object.keys(lugares)
+                .filter(id => !t || normalizarTexto(lugares[id].nome).includes(t))
+                .sort((a, b) => (lugares[a].nome || '').localeCompare(lugares[b].nome || '', 'pt-BR'));
+
+            const alvo = document.getElementById('lista');
+            if (!ids.length) {
+                alvo.innerHTML = '<p class="vazio">' +
+                    (Object.keys(lugares).length ? 'Nenhum lugar com esse nome.' : 'Nenhum lugar cadastrado.') +
+                    '</p>';
+                return;
+            }
+
+            alvo.innerHTML = ids.map(id => {
+                const l = lugares[id];
+                const foto = (l.fotos && l.fotos[0]) || '';
+                const cat = CATEGORIAS[l.categoria];
+                return '<div class="item-lugar' + (editando === id ? ' ativo' : '') + '" data-id="' + esc(id) + '">' +
+                    '<div class="thumb" style="' + (foto ? 'background-image:url(' + esc(foto) + ')' :
+                        'background:' + (cat ? cat.cor : '#444')) + '"></div>' +
+                    '<div class="txt"><b>' + esc(l.nome) + '</b>' +
+                    '<small>' + esc(cat ? cat.nome : l.categoria || 'sem categoria') +
+                    (l.destaque ? ' · destaque' : '') + '</small></div>' +
+                    (foto ? '' : '<span class="sinal">sem foto</span>') +
+                    '</div>';
+            }).join('');
+
+            alvo.querySelectorAll('.item-lugar').forEach(el => {
+                el.addEventListener('click', () => editar(el.dataset.id));
+            });
+        }
+
+        // ============ EDITOR ============
+        function novoLugar() {
+            editando = null;
+            coordEditada = null;
+            desenharEdicao();
+            renderEditor({ nome: '', categoria: 'natureza', lat: '', lon: '', resumo: '', fotos: [], destaque: false });
+            renderLista();
+        }
+
+        function editar(id) {
+            const l = lugares[id];
+            if (!l) return;
+            editando = id;
+            coordEditada = { lat: l.lat, lon: l.lon };
+            desenharEdicao();
+            mapa.panTo([l.lat, l.lon]);
+            renderEditor(l);
+            renderLista();
+        }
+
+        function renderEditor(l) {
+            const opcoes = ORDEM_CATEGORIAS.map(c =>
+                '<option value="' + c + '"' + (l.categoria === c ? ' selected' : '') + '>' +
+                esc(CATEGORIAS[c].nome) + '</option>').join('');
+
+            document.getElementById('editor').innerHTML =
+                '<h2 class="card-title" style="margin-bottom:4px;">' +
+                    (editando ? 'Editando' : 'Novo lugar') + '</h2>' +
+                (editando ? '<p style="font-size:11px;color:var(--text-dim)">id: <span class="mono">' +
+                    esc(editando) + '</span></p>' : '') +
+
+                '<label class="campo">Nome</label>' +
+                '<input type="text" id="f-nome" value="' + esc(l.nome || '') + '">' +
+
+                '<label class="campo">Categoria</label>' +
+                '<select id="f-cat">' + opcoes + '</select>' +
+
+                '<label class="campo">Coordenada (clique no mapa para preencher)</label>' +
+                '<div style="display:flex; gap:8px;">' +
+                    '<input type="text" id="f-lat" placeholder="lat" value="' + esc(l.lat) + '">' +
+                    '<input type="text" id="f-lon" placeholder="lon" value="' + esc(l.lon) + '">' +
+                '</div>' +
+
+                '<label class="campo">Resumo (aparece na ficha, na tela pública)</label>' +
+                '<textarea id="f-resumo">' + esc(l.resumo || '') + '</textarea>' +
+
+                '<label class="campo">Fotos — uma URL por linha (a primeira vira a capa)</label>' +
+                '<textarea id="f-fotos" placeholder="https://…">' +
+                    esc((l.fotos || []).join('\n')) + '</textarea>' +
+
+                '<label class="campo">Link de fonte (opcional)</label>' +
+                '<input type="text" id="f-fonte" value="' + esc(l.fonte || '') + '">' +
+
+                '<label class="campo" style="display:flex;align-items:center;gap:8px;margin-top:14px;">' +
+                    '<input type="checkbox" id="f-destaque" style="width:auto;margin:0;"' +
+                    (l.destaque ? ' checked' : '') + '> Mostrar como destaque na tela inicial</label>' +
+
+                '<button class="btn btn-primary" style="margin-top:14px;" onclick="salvar()">SALVAR</button>' +
+                (editando
+                    ? '<button class="btn btn-mini" style="width:100%;margin-top:8px;" onclick="apagar()">Apagar este lugar</button>'
+                    : '') +
+                '<button class="btn btn-mini" style="width:100%;margin-top:8px;" onclick="cancelar()">Cancelar</button>';
+        }
+
+        function cancelar() {
+            editando = null;
+            coordEditada = null;
+            desenharEdicao();
+            document.getElementById('editor').innerHTML =
+                '<p class="vazio">Escolha um lugar da lista ou crie um novo.</p>';
+            renderLista();
+        }
+
+        // Converte o nome em um id estável e legível na URL do banco.
+        function gerarId(nome) {
+            return nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase();
+        }
+
+        function salvar() {
+            if (!database) return;
+            const nome = document.getElementById('f-nome').value.trim();
+            const lat = parseFloat(document.getElementById('f-lat').value);
+            const lon = parseFloat(document.getElementById('f-lon').value);
+
+            if (!nome) return alert("O lugar precisa de um nome.");
+            if (!isFinite(lat) || !isFinite(lon))
+                return alert("Coordenada inválida.\n\nClique no mapa para preencher lat/lon.");
+
+            const registro = {
+                nome: nome,
+                categoria: document.getElementById('f-cat').value,
+                lat: lat, lon: lon,
+                resumo: document.getElementById('f-resumo').value.trim(),
+                fotos: document.getElementById('f-fotos').value
+                    .split('\n').map(s => s.trim()).filter(Boolean),
+                destaque: document.getElementById('f-destaque').checked
+            };
+            const fonte = document.getElementById('f-fonte').value.trim();
+            if (fonte) registro.fonte = fonte;
+
+            let id = editando;
+            if (!id) {
+                id = gerarId(nome);
+                if (!id) return alert("Não consegui gerar um id a partir desse nome.");
+                if (lugares[id] && !confirm("Já existe um lugar com o id \"" + id + "\".\n\nSubstituir?"))
+                    return;
+            }
+
+            database.ref('maquina/lugares/' + id).set(registro)
+                .then(() => {
+                    editando = id;
+                    document.getElementById('st').innerText = "SALVO: " + nome.toUpperCase();
+                    renderLista();
+                })
+                .catch(erroFirebase);
+        }
+
+        function apagar() {
+            if (!database || !editando) return;
+            const l = lugares[editando];
+            if (!confirm("Apagar \"" + (l ? l.nome : editando) + "\" do catálogo público?")) return;
+            database.ref('maquina/lugares/' + editando).remove()
+                .then(cancelar)
+                .catch(erroFirebase);
+        }
+    </script>
+</body>
+</html>
