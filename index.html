@@ -6,7 +6,7 @@
          pinch acidental deixaria a interface torta para o próximo visitante. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#1d5138">
-    <title>GeoLaser — Ponta Grossa</title>
+    <title>GeoLaser</title>
     <link href="https://fonts.googleapis.com/css2?family=Bitter:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet" href="estilo-eco.css">
@@ -17,6 +17,11 @@
             GEO<span>LASER</span>
             <small id="marca-sub">Ponta Grossa · Paraná</small>
         </div>
+        <!-- Qual mapa está montado na máquina. É o mesmo estado que o painel
+             e a calibração usam (maquina/mapaAtivo): trocar aqui troca para
+             todo mundo, porque descreve um mapa físico de papel na parede. -->
+        <div class="seletor-mapa" id="seletor-mapa" role="group" aria-label="Mapa montado na máquina"></div>
+
         <div class="estado ligando" id="estado">
             <span class="ponto-estado"></span>
             <span id="estado-texto">Conectando à máquina…</span>
@@ -29,6 +34,7 @@
             <div class="legenda">
                 <span><i class="i-laser"></i>Laser agora</span>
                 <span><i class="i-destino"></i>Destino</span>
+                <span class="dica-mapa">Toque em qualquer ponto do mapa para mandar o laser até lá</span>
             </div>
         </section>
 
@@ -42,7 +48,7 @@
                         </svg>
                         <input id="campo-busca" type="search" autocomplete="off" autocorrect="off"
                                spellcheck="false" enterkeyhint="search"
-                               placeholder="Buscar um lugar de Ponta Grossa…"
+                               placeholder="Buscar um lugar…"
                                aria-label="Buscar um lugar">
                         <button class="limpar-busca" id="limpar-busca" hidden aria-label="Limpar busca">✕</button>
                     </div>
@@ -87,6 +93,7 @@
     <script src="config.js"></script>
     <script src="calibracao.js"></script>
     <script src="lugares.js"></script>
+    <script src="lugares-parana.js"></script>
 
     <script>
         // ============================================================
@@ -116,6 +123,7 @@
         let camadaMalha = null;
         let mapaAtivo = MAPA_PADRAO;
         let refCalibracao = null;
+        let refLugaresAntigo = null;
 
         // calibracao.js lê esta variável global; sem ela coordParaPassos
         // e passosParaCoord não têm de onde tirar a transformação.
@@ -124,8 +132,9 @@
         let posicaoXAtual = 0, posicaoYAtual = 0;
         let alvoXAtual = null, alvoYAtual = null;
 
-        let lugares = LUGARES_SEMENTE;   // trocado pelo Firebase assim que ele responder
+        let lugares = sementeDoMapa(MAPA_PADRAO);   // trocado pelo Firebase assim que ele responder
         let usandoSemente = true;
+        let refLugares = null;
         let categoriaFiltro = null;       // null = destaques
         let lugarAberto = null;
         // Passos que ESTA tela pediu para o lugar aberto. Sem guardar isso, o
@@ -136,6 +145,7 @@
         let marcadorLaser = null, marcadorDestino = null;
         let temporizadorLocal = null, temporizadorExterno = null;
         let buscaExternaEmCurso = 0;
+        let pontoNoMapaEmCurso = 0;
 
         // ============ UTILIDADES ============
         function esc(s) {
@@ -179,15 +189,97 @@
                 zoomControl: true,
                 attributionControl: false,
                 // Sem inércia o arrasto com o dedo fica travado no tablet.
-                tap: true
+                tap: true,
+                // Com o mapa clicável, o duplo-toque teria dois efeitos ao mesmo
+                // tempo: mandar o laser e afastar o mapa do ponto escolhido.
+                // Para aproximar sobram o pinça e os botões + / −.
+                doubleClickZoom: false
             }).setView(def.centro, def.zoom);
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 18
             }).addTo(mapa);
 
+            // Clicar em qualquer ponto manda o laser para lá. O contorno do
+            // município é desenhado com interactive:false justamente para não
+            // engolir esse clique.
+            mapa.on('click', aoClicarNoMapa);
+
             setTimeout(() => mapa.invalidateSize(), 120);
             window.addEventListener('resize', () => mapa.invalidateSize());
+        }
+
+        // ============ PONTO ESCOLHIDO NO MAPA ============
+        // O catálogo cobre o que merece uma ficha; o mapa cobre o resto. Um
+        // toque em qualquer lugar vira um destino igual aos outros — mesma
+        // ficha, mesma checagem de alcance, mesma escrita em alvoX/alvoY.
+        // O nome vem depois, do OpenStreetMap: esperar por ele antes de mover
+        // deixaria o laser parado por causa de um texto.
+        // Duplo-toque no Leaflet dispara DOIS cliques, e cada um mandaria um
+        // destino para a máquina. Num tablet o duplo-toque é gesto comum, então
+        // toque repetido logo em seguida e quase no mesmo ponto conta como um.
+        const INTERVALO_TOQUE_REPETIDO = 450;   // ms
+        let ultimoToque = null;
+
+        function toqueRepetido(lat, lon) {
+            const agora = Date.now();
+            const repetido = ultimoToque &&
+                agora - ultimoToque.quando < INTERVALO_TOQUE_REPETIDO &&
+                Math.abs(lat - ultimoToque.lat) < 0.002 &&
+                Math.abs(lon - ultimoToque.lon) < 0.002;
+            ultimoToque = { lat: lat, lon: lon, quando: agora };
+            return repetido;
+        }
+
+        function aoClicarNoMapa(e) {
+            if (toqueRepetido(e.latlng.lat, e.latlng.lng)) return;
+            const meu = ++pontoNoMapaEmCurso;
+            const ponto = {
+                id: 'ponto-mapa-' + meu,
+                nome: 'Ponto no mapa',
+                categoria: null,
+                lat: e.latlng.lat,
+                lon: e.latlng.lng,
+                resumo: '',
+                fotos: [],
+                externo: true,
+                noMapa: true
+            };
+            // enquadrar: false — dar zoom a cada toque faria o mapa fugir
+            // debaixo do dedo de quem está só explorando.
+            abrirLugar(ponto, false);
+            descobrirNomeDoPonto(ponto, meu);
+        }
+
+        function descobrirNomeDoPonto(ponto, meu) {
+            const url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2' +
+                        '&zoom=17&addressdetails=1&accept-language=pt-BR' +
+                        '&lat=' + ponto.lat + '&lon=' + ponto.lon;
+
+            fetch(url, { headers: { 'Accept': 'application/json' } })
+                .then(r => r.ok ? r.json() : null)
+                .then(d => {
+                    // Outro toque já aconteceu, ou o visitante fechou a ficha.
+                    if (meu !== pontoNoMapaEmCurso) return;
+                    if (!lugarAberto || lugarAberto.id !== ponto.id) return;
+                    if (!d || d.error) return;
+
+                    const end = d.address || {};
+                    const cidade = end.city || end.town || end.village ||
+                                   end.municipality || end.county || '';
+                    const bairro = end.suburb || end.neighbourhood || end.hamlet || '';
+                    const rua = end.road || end.pedestrian || '';
+                    const local = d.name || rua || bairro || cidade;
+
+                    if (local) ponto.nome = local;
+                    ponto.resumo = [bairro, cidade, end.state || '']
+                        .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
+                        .join(' · ');
+
+                    renderFicha(ponto);
+                    desenharDestino(ponto);   // o tooltip do pino traz o nome
+                })
+                .catch(() => {});   // sem nome a ficha continua útil: o laser já foi
         }
 
         function carregarMalha(idMapa) {
@@ -268,12 +360,18 @@
             const lista = listaVisivel();
             alvo.innerHTML = lista.map(l => {
                 const foto = primeiraFoto(l);
-                const estilo = foto
-                    ? 'background-image:linear-gradient(rgba(0,0,0,.06),rgba(0,0,0,.06)),url(' + esc(foto) + ')'
-                    : 'background:linear-gradient(150deg,' + corDe(l) + ',' + corDe(l) + 'cc)';
+                const estilo = !foto
+                    ? 'background:linear-gradient(150deg,' + corDe(l) + ',' + corDe(l) + 'cc)'
+                    : l.simbolo
+                        ? 'background:linear-gradient(150deg,' + corDe(l) + ',' + corDe(l) + 'cc);' +
+                          'background-image:url(' + esc(foto) + ');background-size:contain;' +
+                          'background-repeat:no-repeat;background-position:center'
+                        : 'background-image:linear-gradient(rgba(0,0,0,.06),rgba(0,0,0,.06)),url(' + esc(foto) + ')';
                 return '<button class="bloco' + (foto ? '' : ' sem-foto') + '" data-id="' + esc(l.id) + '" ' +
                        'aria-pressed="' + (lugarAberto && lugarAberto.id === l.id) + '" style="' + estilo + '">' +
                        svgIcone(l, 'marca-agua') +
+                       (l.simbolo ? '<span class="selo-regiao">brasão</span>'
+                                  : l.fotoRegiao ? '<span class="selo-regiao">foto da região</span>' : '') +
                        '<span class="tarja">' + esc(l.nome) + '</span></button>';
             }).join('');
 
@@ -286,6 +384,15 @@
         }
 
         // ============ BUSCA ============
+        function limparBusca() {
+            clearTimeout(temporizadorLocal);
+            clearTimeout(temporizadorExterno);
+            buscaExternaEmCurso++;
+            document.getElementById('campo-busca').value = '';
+            document.getElementById('limpar-busca').hidden = true;
+            fecharSugestoes();
+        }
+
         function fecharSugestoes() {
             const cx = document.getElementById('sugestoes');
             cx.hidden = true;
@@ -311,7 +418,8 @@
             if (locais.length) {
                 html += locais.map(l => {
                     const c = categoriaDe(l);
-                    return linhaSugestao(l, c ? c.nome : 'Ponta Grossa');
+                    const rotulo = [c ? c.nome : '', l.municipio || ''].filter(Boolean).join(' · ');
+                    return linhaSugestao(l, rotulo || (MAPAS[mapaAtivo] || {}).curto || 'Catálogo');
                 }).join('');
             }
 
@@ -344,39 +452,94 @@
             });
         }
 
-        // Consulta o OpenStreetMap só quando o catálogo não deu conta.
-        // bounded=1 + viewbox limitam o resultado à região do mapa físico:
-        // sem isso "Catedral" traria uma catedral de outro estado, que a
-        // máquina não teria como apontar.
+        // ---------- BUSCA EXTERNA (OpenStreetMap / Nominatim) ----------
+        // O catálogo tem os lugares que valem uma ficha; endereço de rua vem
+        // daqui. Duas tentativas, porque uma só erra metade das vezes:
+        //   1. o termo puro cercado pela viewbox do mapa (bounded=1);
+        //   2. o termo + o município/estado do mapa, sem cerco.
+        // A (2) existe porque o cerco é um retângulo: "Rua Balduíno Taques"
+        // está dentro dele, mas o Nominatim só encontra a rua certa quando a
+        // cidade aparece na consulta. E a (1) existe porque sem cerco
+        // "Catedral" devolve catedral de qualquer canto do Brasil.
+        function urlNominatim(termo, def, cercar) {
+            const caixa = def.viewbox || MAPAS[MAPA_PADRAO].viewbox;
+            return 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8' +
+                   '&accept-language=pt-BR&countrycodes=br&addressdetails=1' +
+                   (cercar ? '&bounded=1' : '') +
+                   '&viewbox=' + caixa.join(',') +
+                   '&q=' + encodeURIComponent(termo);
+        }
+
+        // Fora da caixa do mapa a máquina não alcança: o laser não tem para
+        // onde apontar, então o resultado não pode nem aparecer na lista.
+        function dentroDaCaixa(lat, lon, caixa) {
+            const oeste = Math.min(caixa[0], caixa[2]), leste = Math.max(caixa[0], caixa[2]);
+            const sul = Math.min(caixa[1], caixa[3]), norte = Math.max(caixa[1], caixa[3]);
+            return lon >= oeste && lon <= leste && lat >= sul && lat <= norte;
+        }
+
+        function traduzirResultado(d, termo) {
+            const partes = String(d.display_name || '').split(',').map(x => x.trim());
+            const end = d.address || {};
+            const cidade = end.city || end.town || end.village || end.municipality || '';
+            const rua = end.road || end.pedestrian || end.footway || '';
+            // Endereço vem sem `name`; o rótulo útil é a rua, e o detalhe é
+            // o bairro/cidade — "Centro · Ponta Grossa" diz mais que a
+            // sequência inteira do display_name.
+            const nome = d.name || rua || partes[0] || termo;
+            const detalhe = [end.suburb || end.neighbourhood || '', cidade]
+                .filter(Boolean).join(' · ') || partes.slice(1, 3).join(', ') || 'OpenStreetMap';
+            return {
+                id: 'osm-' + d.place_id,
+                nome: nome,
+                detalhe: detalhe,
+                categoria: null,
+                lat: parseFloat(d.lat),
+                lon: parseFloat(d.lon),
+                importancia: parseFloat(d.importance) || 0,
+                resumo: '',
+                fotos: [],
+                externo: true
+            };
+        }
+
         function buscarNoOpenStreetMap(termo, aoResponder) {
             const def = MAPAS[mapaAtivo] || MAPAS[MAPA_PADRAO];
             const caixa = def.viewbox || MAPAS[MAPA_PADRAO].viewbox;
-            const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5' +
-                        '&accept-language=pt-BR&countrycodes=br&bounded=1' +
-                        '&viewbox=' + caixa.join(',') +
-                        '&q=' + encodeURIComponent(termo);
-
             const meu = ++buscaExternaEmCurso;
-            fetch(url, { headers: { 'Accept': 'application/json' } })
+
+            const pedir = url => fetch(url, { headers: { 'Accept': 'application/json' } })
                 .then(r => r.ok ? r.json() : [])
-                .then(dados => {
-                    if (meu !== buscaExternaEmCurso) return;   // resposta atrasada de outra busca
-                    aoResponder((dados || []).map(d => {
-                        const partes = String(d.display_name || '').split(',');
-                        return {
-                            id: 'osm-' + d.place_id,
-                            nome: d.name || partes[0] || termo,
-                            detalhe: partes.slice(1, 3).join(',').trim() || 'OpenStreetMap',
-                            categoria: null,
-                            lat: parseFloat(d.lat),
-                            lon: parseFloat(d.lon),
-                            resumo: '',
-                            fotos: [],
-                            externo: true
-                        };
-                    }).filter(l => isFinite(l.lat) && isFinite(l.lon)));
-                })
-                .catch(() => { if (meu === buscaExternaEmCurso) aoResponder([]); });
+                .catch(() => []);
+
+            const comContexto = def.contextoBusca ? termo + ', ' + def.contextoBusca : termo;
+
+            Promise.all([
+                pedir(urlNominatim(termo, def, true)),
+                pedir(urlNominatim(comContexto, def, false))
+            ]).then(([cercados, contextuais]) => {
+                if (meu !== buscaExternaEmCurso) return;   // resposta atrasada de outra busca
+                const vistos = new Set();
+                const saida = [];
+                // Os cercados vêm primeiro: já se sabe que estão na região.
+                (cercados || []).concat(contextuais || []).forEach(d => {
+                    const l = traduzirResultado(d, termo);
+                    if (!isFinite(l.lat) || !isFinite(l.lon)) return;
+                    if (!dentroDaCaixa(l.lat, l.lon, caixa)) return;
+                    // O mesmo lugar sai nas duas consultas com place_id
+                    // diferente, e uma rua longa volta partida em vários
+                    // trechos: "Rua Balduíno Taques" seis vezes seguidas não
+                    // ajuda ninguém. A chave é nome + bairro, então trechos em
+                    // bairros diferentes continuam aparecendo separados — essa
+                    // distinção é útil, a repetição do mesmo bairro não.
+                    const chave = (l.nome + '|' + l.detalhe).toLowerCase()
+                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                    if (vistos.has(l.id) || vistos.has(chave)) return;
+                    vistos.add(l.id); vistos.add(chave);
+                    saida.push(l);
+                });
+                aoResponder(saida.slice(0, 6));
+            });
         }
 
         function aoDigitar() {
@@ -392,9 +555,13 @@
             temporizadorLocal = setTimeout(() => {
                 const locais = buscarLugares(lugares, termo, 8);
 
-                // O catálogo é a resposta preferida; o OSM só entra quando ele
-                // tem pouco a oferecer e o termo já é específico o bastante.
-                const vaiBuscarFora = locais.length < 3 && termo.trim().length >= 4;
+                // O catálogo é a resposta preferida, mas a externa roda SEMPRE
+                // que o termo é específico o bastante. Antes ela só rodava
+                // quando o catálogo trazia menos de 3 resultados, e era esse o
+                // motivo de procurar rua funcionar num dia e não no outro:
+                // bastava o catálogo ter três lugares com aquela palavra para
+                // a rua nunca ser procurada.
+                const vaiBuscarFora = termo.trim().length >= 3;
                 renderSugestoes(locais, [], termo, vaiBuscarFora);
 
                 if (vaiBuscarFora) {
@@ -402,7 +569,13 @@
                         buscarNoOpenStreetMap(termo, externos => {
                             // O usuário pode ter apagado tudo enquanto esperava.
                             if (document.getElementById('campo-busca').value !== termo) return;
-                            renderSugestoes(locais, externos, termo, false);
+                            // O que já está no catálogo não se repete embaixo
+                            // como "encontrado no mapa".
+                            const conhecidos = new Set(locais.map(l =>
+                                l.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')));
+                            const novos = externos.filter(e => !conhecidos.has(
+                                e.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')));
+                            renderSugestoes(locais, novos, termo, false);
                         });
                     }, ESPERA_BUSCA_EXTERNA);
                 }
@@ -410,7 +583,7 @@
         }
 
         // ============ ABRIR UM LUGAR ============
-        function abrirLugar(lugar) {
+        function abrirLugar(lugar, enquadrar) {
             lugarAberto = lugar;
 
             fecharSugestoes();
@@ -423,7 +596,9 @@
 
             renderFicha(lugar);
             desenharDestino(lugar);
-            mapa.flyTo([lugar.lat, lugar.lon], Math.max(mapa.getZoom(), 13), { duration: .9 });
+            if (enquadrar !== false) {
+                mapa.flyTo([lugar.lat, lugar.lon], Math.max(mapa.getZoom(), 13), { duration: .9 });
+            }
 
             enviarLaserPara(lugar);
         }
@@ -441,24 +616,51 @@
             const topo = document.getElementById('ficha-topo');
             const cat = categoriaDe(lugar);
 
+            // Bandeira e brasão são desenhos, não paisagem: cortados no
+            // 'cover' viram um retângulo colorido sem sentido. Entram
+            // inteiros, sobre o fundo da categoria.
             topo.style.cssText = foto
-                ? 'background-image:url(' + esc(foto) + ')'
+                ? (lugar.simbolo
+                    ? 'background:linear-gradient(150deg,' + corDe(lugar) + ',' + corDe(lugar) +
+                      'bb);background-image:url(' + esc(foto) + ');background-size:contain;' +
+                      'background-repeat:no-repeat;background-position:center'
+                    : 'background-image:url(' + esc(foto) + ')')
                 : 'background:linear-gradient(150deg,' + corDe(lugar) + ',' + corDe(lugar) + 'bb)';
             // A marca d'água antiga fica no HTML do topo junto com o botão
             // voltar; recriar só o ícone evita apagar o botão.
             topo.querySelectorAll('.marca-agua').forEach(n => n.remove());
+            topo.querySelectorAll('.credito-foto').forEach(n => n.remove());
             if (!foto) topo.insertAdjacentHTML('beforeend', svgIcone(lugar, 'marca-agua'));
 
+            // Boa parte dos lugares não tem foto DELES no Commons e recebeu
+            // uma foto geolocalizada do entorno. Dizer isso é obrigatório:
+            // sem a legenda, a tela estaria afirmando que aquela imagem é a
+            // Caverna do Opilião quando é o parque em volta dela.
+            if (foto) {
+                const credito = lugar.simbolo
+                    ? 'Símbolo oficial — Wikimedia Commons'
+                    : lugar.fotoRegiao
+                        ? 'Foto da região — Wikimedia Commons'
+                        : 'Foto: Wikimedia Commons';
+                topo.insertAdjacentHTML('beforeend', lugar.fonteFoto
+                    ? '<a class="credito-foto" href="' + esc(lugar.fonteFoto) + '" ' +
+                      'target="_blank" rel="noopener">' + esc(credito) + '</a>'
+                    : '<span class="credito-foto">' + esc(credito) + '</span>');
+            }
+
             const etiqueta = document.getElementById('ficha-etiqueta');
-            etiqueta.innerText = cat ? cat.nome : 'Encontrado no mapa';
+            etiqueta.innerText = cat ? cat.nome
+                                     : lugar.noMapa ? 'Escolhido no mapa' : 'Encontrado no mapa';
             etiqueta.style.background = corDe(lugar);
 
             document.getElementById('ficha-nome').innerText = lugar.nome;
 
             const resumo = document.getElementById('ficha-resumo');
-            resumo.innerText = lugar.resumo || (lugar.externo
-                ? 'Lugar encontrado no OpenStreetMap. Ele ainda não está no catálogo do GeoLaser, então não temos texto nem fotos — mas o laser aponta para lá do mesmo jeito.'
-                : 'Ainda sem descrição.');
+            resumo.innerText = lugar.resumo || (lugar.noMapa
+                ? 'Ponto escolhido direto no mapa. Não é um lugar do catálogo, então não há texto nem foto — mas o laser aponta para essa coordenada do mesmo jeito.'
+                : lugar.externo
+                    ? 'Lugar encontrado no OpenStreetMap. Ele ainda não está no catálogo do GeoLaser, então não temos texto nem fotos — mas o laser aponta para lá do mesmo jeito.'
+                    : 'Ainda sem descrição.');
 
             document.getElementById('ficha-coord').innerText =
                 lugar.lat.toFixed(5) + ', ' + lugar.lon.toFixed(5);
@@ -585,31 +787,69 @@
                 aplicarMapaAtivo(snap.val() || MAPA_PADRAO);
             }, aoFalhar);
 
-            // Catálogo vivo. Enquanto o banco não tiver nada, a semente do
-            // arquivo mantém a tela utilizável — é a diferença entre um totem
-            // funcionando e uma tela vazia na frente do público.
-            database.ref('maquina/lugares').on('value', snap => {
-                const v = snap.val();
-                const lista = v ? Object.keys(v).map(k => Object.assign({ id: k }, v[k])) : [];
-                const validos = lista.filter(l =>
-                    l && l.nome && isFinite(parseFloat(l.lat)) && isFinite(parseFloat(l.lon)));
+        }
 
-                if (validos.length) {
-                    validos.forEach(l => { l.lat = parseFloat(l.lat); l.lon = parseFloat(l.lon); });
-                    validos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-                    lugares = validos;
-                    usandoSemente = false;
-                } else {
-                    lugares = LUGARES_SEMENTE;
-                    usandoSemente = true;
-                }
-                // Aviso discreto no rodapé: o visitante não precisa entender,
-                // mas quem cuida da máquina consegue ver de longe que o banco
-                // ainda não foi semeado pelo /dev/lugares.
-                document.getElementById('nota-catalogo').hidden = !usandoSemente;
-                renderFiltros();
-                renderBlocos();
+        // ============ CATÁLOGO VIVO ============
+        // Enquanto o banco não tiver nada, a semente do arquivo mantém a tela
+        // utilizável — é a diferença entre um totem funcionando e uma tela
+        // vazia na frente do público.
+        let doBancoNovo = null, doBancoAntigo = null;
+
+        function normalizarCatalogo(v) {
+            const lista = v ? Object.keys(v).map(k => Object.assign({ id: k }, v[k])) : [];
+            const validos = lista.filter(l =>
+                l && l.nome && isFinite(parseFloat(l.lat)) && isFinite(parseFloat(l.lon)));
+            validos.forEach(l => { l.lat = parseFloat(l.lat); l.lon = parseFloat(l.lon); });
+            validos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+            return validos;
+        }
+
+        function aplicarCatalogo() {
+            // Ordem de preferência: o nó do mapa, depois o nó antigo (que só
+            // existe para Ponta Grossa), depois a semente do arquivo.
+            const escolhido = (doBancoNovo && doBancoNovo.length) ? doBancoNovo
+                            : (doBancoAntigo && doBancoAntigo.length) ? doBancoAntigo
+                            : null;
+            lugares = escolhido || sementeDoMapa(mapaAtivo);
+            usandoSemente = !escolhido;
+
+            // Aviso discreto no rodapé: o visitante não precisa entender,
+            // mas quem cuida da máquina consegue ver de longe que o banco
+            // ainda não foi semeado pelo /dev/lugares.
+            document.getElementById('nota-catalogo').hidden = !usandoSemente;
+
+            // A ficha aberta veio da lista antiga; sem refazer a referência
+            // ela continuaria mostrando um lugar que o catálogo novo talvez
+            // nem tenha. Fechar é mais honesto que exibir dado órfão.
+            if (lugarAberto && !lugarAberto.externo &&
+                !lugares.some(l => l.id === lugarAberto.id)) {
+                fecharLugar();
+                return;
+            }
+            renderFiltros();
+            renderBlocos();
+        }
+
+        function ouvirLugares() {
+            if (!database) return;
+            if (refLugares) refLugares.off();
+            if (refLugaresAntigo) { refLugaresAntigo.off(); refLugaresAntigo = null; }
+            doBancoNovo = null;
+            doBancoAntigo = null;
+
+            refLugares = database.ref(caminhoLugares(mapaAtivo));
+            refLugares.on('value', snap => {
+                doBancoNovo = normalizarCatalogo(snap.val());
+                aplicarCatalogo();
             }, aoFalhar);
+
+            if (ehMapaAntigo(mapaAtivo)) {
+                refLugaresAntigo = database.ref(CAMINHO_LUGARES_ANTIGO);
+                refLugaresAntigo.on('value', snap => {
+                    doBancoAntigo = normalizarCatalogo(snap.val());
+                    aplicarCatalogo();
+                }, aoFalhar);
+            }
         }
 
         function aoFalhar() {
@@ -618,14 +858,54 @@
 
         function aplicarMapaAtivo(id) {
             const novo = MAPAS[id] ? id : MAPA_PADRAO;
+            const mudou = novo !== mapaAtivo;
+            const def = MAPAS[novo];
+
             document.getElementById('marca-sub').innerText =
-                (MAPAS[novo].nome || '').replace(' / ', ' · ');
+                (def.nome || '').replace(' / ', ' · ');
+            document.getElementById('campo-busca').placeholder =
+                def.buscaPlaceholder || 'Buscar um lugar…';
+            renderSeletorMapa(novo);
+
             // O contorno já foi desenhado no arranque, para a tela não ficar
             // vazia caso o Firebase demore ou nem responda. Só vale redesenhar
             // se o mapa físico realmente for outro.
-            if (novo !== mapaAtivo || !camadaMalha) carregarMalha(novo);
+            if (mudou || !camadaMalha) carregarMalha(novo);
             mapaAtivo = novo;
+
+            if (mudou) {
+                // Busca digitada e ficha aberta são do mapa anterior: a
+                // máquina não tem mais como apontar para aquilo.
+                limparBusca();
+                if (lugarAberto) fecharLugar();
+                if (mapa) mapa.flyTo(def.centro, def.zoom, { duration: .8 });
+                lugares = sementeDoMapa(novo);
+                renderFiltros();
+                renderBlocos();
+            }
             ouvirCalibracao();
+            ouvirLugares();
+        }
+
+        // O seletor escreve em maquina/mapaAtivo e espera o banco responder
+        // em vez de já pintar o botão: assim a tela nunca mostra um mapa que
+        // a máquina não aceitou, e as três telas contam a mesma história.
+        function renderSeletorMapa(atual) {
+            const cx = document.getElementById('seletor-mapa');
+            const ids = Object.keys(MAPAS);
+            if (ids.length < 2) { cx.hidden = true; return; }
+            cx.innerHTML = ids.map(id =>
+                '<button class="chip-mapa" data-mapa="' + esc(id) + '" ' +
+                'aria-pressed="' + (id === atual) + '">' +
+                esc(MAPAS[id].curto || MAPAS[id].nome) + '</button>').join('');
+            cx.querySelectorAll('.chip-mapa').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.dataset.mapa;
+                    if (id === mapaAtivo) return;
+                    if (database) database.ref('maquina/mapaAtivo').set(id).catch(aoFalhar);
+                    else aplicarMapaAtivo(id);   // sem banco, ao menos o mapa virtual muda
+                });
+            });
         }
 
         function ouvirCalibracao() {
@@ -646,9 +926,7 @@
         document.getElementById('campo-busca').addEventListener('input', aoDigitar);
         document.getElementById('campo-busca').addEventListener('focus', aoDigitar);
         document.getElementById('limpar-busca').addEventListener('click', () => {
-            document.getElementById('campo-busca').value = '';
-            document.getElementById('limpar-busca').hidden = true;
-            fecharSugestoes();
+            limparBusca();
             document.getElementById('campo-busca').focus();
         });
         document.getElementById('voltar').addEventListener('click', fecharLugar);
@@ -660,6 +938,9 @@
 
         iniciarMapa();
         carregarMalha(mapaAtivo);
+        renderSeletorMapa(mapaAtivo);
+        document.getElementById('campo-busca').placeholder =
+            (MAPAS[mapaAtivo] || {}).buscaPlaceholder || 'Buscar um lugar…';
         renderFiltros();
         renderBlocos();
         iniciarFirebase();

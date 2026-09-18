@@ -549,3 +549,93 @@ body {
     .blocos { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
     .ficha-topo { height: 190px; }
 }
+
+/* ---------- SELETOR DE MAPA (cabeçalho) ---------- */
+/* Qual mapa de papel está montado na máquina. Fica no cabeçalho, ao lado do
+   estado da conexão, porque é informação do mesmo tipo: descreve a máquina,
+   não o lugar que o visitante escolheu. */
+.seletor-mapa {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    background: rgba(255, 255, 255, .08);
+    padding: 4px;
+    border-radius: 999px;
+}
+.chip-mapa {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: #cfe3d4;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 15px;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s, color .15s;
+}
+.chip-mapa:hover { color: #fff; }
+.chip-mapa[aria-pressed="true"] {
+    background: var(--verde-claro);
+    color: #14301f;
+}
+
+/* ---------- CRÉDITO DA FOTO ---------- */
+/* Muita ficha usa foto do entorno, não do lugar. A legenda existe para a tela
+   não afirmar o que a foto não mostra. */
+.credito-foto {
+    position: absolute;
+    right: 10px; bottom: 10px;
+    z-index: 4;
+    max-width: calc(100% - 20px);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .3px;
+    color: #f2f7f0;
+    background: rgba(20, 35, 25, .62);
+    padding: 4px 10px;
+    border-radius: 999px;
+    text-decoration: none;
+    backdrop-filter: blur(2px);
+}
+.credito-foto:hover { background: rgba(20, 35, 25, .82); }
+
+.bloco .selo-regiao {
+    position: absolute;
+    right: 8px; top: 8px;
+    z-index: 3;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .3px;
+    color: #f2f7f0;
+    background: rgba(20, 35, 25, .55);
+    padding: 3px 8px;
+    border-radius: 999px;
+}
+
+/* Num tablet em pé o cabeçalho fica apertado: o seletor desce para a linha
+   de baixo em vez de espremer a marca. */
+@media (max-width: 700px) {
+    .topo { flex-wrap: wrap; }
+    .seletor-mapa { order: 3; width: 100%; margin-left: 0; justify-content: center; }
+}
+
+/* ---------- DICA DE TOQUE NO MAPA ---------- */
+/* O visitante não adivinha que o mapa inteiro é clicável; sem esta linha a
+   função existe e ninguém usa. Fica na legenda, separada por um traço, para
+   não virar mais um item da lista de cores. */
+.legenda .dica-mapa {
+    border-left: 1px solid var(--areia-2);
+    padding-left: 18px;
+    color: var(--verde);
+    font-weight: 600;
+}
+
+/* Num tablet estreito a legenda ocupa a largura toda e a dica desce sozinha
+   para a segunda linha, sem a borda que só faz sentido lado a lado. */
+@media (max-width: 760px) {
+    .legenda { flex-wrap: wrap; gap: 10px 18px; max-width: calc(100% - 28px); }
+    .legenda .dica-mapa { border-left: 0; padding-left: 0; flex-basis: 100%; }
+}

@@ -374,11 +374,13 @@
             if (etapa.endsWith('-escolher')) {
                 if (!pontoProvisorio) {
                     inst.className = 'instrucao';
+                    inst.className = 'instrucao';
                     inst.innerHTML = '<b>Escolher — Ponto ' + numero + '</b><br>Clique no mapa ao lado, sobre um lugar que você também consiga identificar no mapa físico da máquina.' +
                         (alvo === 'p3' ? '<br><br>Para o terceiro, prefira um ponto <b>fora da linha</b> entre os dois primeiros — é o desalinhamento dele que revela a torção do mapa.' : '');
-                    acoes.innerHTML = (alvo === 'p3')
-                        ? '<button class="btn btn-mini" style="width:100%;" onclick="cancelarEscolha()">Cancelar e manter 2 pontos</button>'
-                        : '';
+                    acoes.innerHTML = sugestoesDeReferencia(numero) +
+                        ((alvo === 'p3')
+                            ? '<button class="btn btn-mini" style="width:100%;" onclick="cancelarEscolha()">Cancelar e manter 2 pontos</button>'
+                            : '');
                 } else {
                     inst.className = 'instrucao ativa';
                     inst.innerHTML = '<b>Ponto ' + numero + ' escolhido</b><br><span class="mono">' +
@@ -464,6 +466,42 @@
                        'referência estão próximos demais nesse eixo.';
             }
             return '<span style="color:var(--neon-amber)">' + txt + '</span>';
+        }
+
+        // Atalho para as referências sugeridas do mapa (config.js). Clicar no
+        // mapa continua valendo; isto só evita ter que achar Foz do Iguaçu no
+        // zoom do estado inteiro, e garante um triângulo grande, que é de onde
+        // vem a precisão da calibração.
+        function sugestoesDeReferencia(numero) {
+            const refs = (MAPAS[mapaAtivo] || {}).referencias || [];
+            if (!refs.length) return '';
+            const usadas = ['p1', 'p2', 'p3']
+                .map(q => calib[q])
+                .filter(Boolean)
+                .map(p => p.lat.toFixed(4) + ',' + p.lon.toFixed(4));
+            const livres = refs.filter(r =>
+                usadas.indexOf(r.lat.toFixed(4) + ',' + r.lon.toFixed(4)) === -1);
+            if (!livres.length) return '';
+
+            return '<label class="campo">Sugestões para o ponto ' + numero + '</label>' +
+                livres.map((r, i) =>
+                    '<button class="btn btn-mini" style="width:100%;margin-bottom:6px;" ' +
+                    'onclick="usarReferencia(' + refs.indexOf(r) + ')">' + r.nome + '</button>'
+                ).join('') +
+                '<p class="vazio" style="margin:2px 0 12px;">Ou clique direto no mapa.</p>';
+        }
+
+        function usarReferencia(indice) {
+            const r = ((MAPAS[mapaAtivo] || {}).referencias || [])[indice];
+            if (!r) return;
+            pontoProvisorio = { lat: r.lat, lon: r.lon, nome: r.nome };
+            desenharProvisorio();
+            mapa.flyTo([r.lat, r.lon], Math.max(mapa.getZoom(), 11), { duration: .7 });
+            renderEtapa();
+            // renderEtapa redesenha o campo de nome vazio; a sugestão já traz
+            // um nome bom, e digitar de novo num tablet é atrito à toa.
+            const campo = document.getElementById('nome-ponto');
+            if (campo) campo.value = r.nome;
         }
 
         function confirmarEscolha() {
