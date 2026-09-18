@@ -92,9 +92,11 @@
             <div class="right-column">
                 <section class="card" style="flex: 1;">
                     <h2 class="card-title">Destinos e Cidades</h2>
+                    <!-- Trocar aqui troca para todas as telas: este valor
+                         descreve qual mapa de papel está na máquina. -->
                     <div class="mapa-ativo-tag">
                         <span>Mapa montado</span>
-                        <b id="rotulo-mapa">—</b>
+                        <select id="seletor-mapa" onchange="trocarMapa(this.value)"></select>
                     </div>
                     <div id="aviso-calib" class="aviso-calib pendente">Carregando calibração...</div>
                     <p style="font-size:11px; color:var(--text-dim); margin-bottom:10px;">Os destinos abaixo pertencem a este mapa. Trocar o mapa na tela de calibração troca a lista.</p>
@@ -172,13 +174,38 @@
             // calibração; calibração e pontos salvos pertencem a esse mapa.
             database.ref('maquina/mapaAtivo').on('value', (snap) => {
                 mapaAtivo = MAPAS[snap.val()] ? snap.val() : MAPA_PADRAO;
-                document.getElementById('rotulo-mapa').innerText = MAPAS[mapaAtivo].nome;
+                renderSeletorMapa();
                 ouvirDadosDoMapa();
             });
         }
 
         // Religa as escutas ao trocar de mapa. Sem o .off() os listeners
         // antigos continuariam vivos e misturariam pontos de mapas diferentes.
+        function renderSeletorMapa() {
+            const sel = document.getElementById('seletor-mapa');
+            if (!sel.options.length) {
+                sel.innerHTML = Object.keys(MAPAS)
+                    .map(id => '<option value="' + id + '">' + MAPAS[id].nome + '</option>').join('');
+            }
+            sel.value = mapaAtivo;
+        }
+
+        // Não aplica local: escreve no banco e espera o retorno. Assim o
+        // painel nunca mostra um mapa diferente do que a máquina registrou.
+        function trocarMapa(idMapa) {
+            if (!MAPAS[idMapa] || idMapa === mapaAtivo) {
+                renderSeletorMapa();
+                return;
+            }
+            if (!confirm('Trocar o mapa montado para "' + MAPAS[idMapa].nome + '"?\n\n' +
+                         'A calibração e os pontos deste mapa são outros, e a tela pública ' +
+                         'do totem muda junto.')) {
+                renderSeletorMapa();
+                return;
+            }
+            database.ref('maquina/mapaAtivo').set(idMapa).catch(erroFirebase);
+        }
+
         function ouvirDadosDoMapa() {
             if (refPontos) refPontos.off();
             if (refCalib) refCalib.off();

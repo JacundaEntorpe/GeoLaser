@@ -84,12 +84,20 @@
             <section class="card">
                 <h2 class="card-title">Catálogo</h2>
 
-                <div class="barra-ferramentas">
+                <!-- Qual catálogo está sendo editado. Diferente do seletor da
+                     calibração e do totem: aqui a escolha é SÓ desta tela, não
+                     mexe em maquina/mapaAtivo. Editar o catálogo do estado com
+                     o mapa de Ponta Grossa montado na máquina é normal. -->
+                <label class="rotulo-campo" for="seletor-catalogo">Mapa deste catálogo</label>
+                <select id="seletor-catalogo" onchange="trocarCatalogo(this.value)"></select>
+
+                <div class="barra-ferramentas" style="margin-top:12px;">
                     <button class="btn btn-primary" style="flex:1 1 100%;" onclick="novoLugar()">+ NOVO LUGAR</button>
                     <button class="btn btn-mini" onclick="semear()">Semear catálogo inicial</button>
                     <button class="btn btn-mini" onclick="exportar()">Exportar JSON</button>
                 </div>
                 <div class="contagem" id="contagem">Carregando…</div>
+                <div id="aviso-migracao" class="aviso" style="display:none; margin-top:10px;"></div>
 
                 <input type="text" id="filtro" placeholder="Filtrar por nome…" style="margin-top:10px;"
                        oninput="renderLista()">
@@ -109,6 +117,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="../config.js"></script>
     <script src="../lugares.js"></script>
+    <script src="../lugares-parana.js"></script>
 
     <script>
         // ============================================================
@@ -121,6 +130,9 @@
 
         let database = null;
         let mapa = null;
+        let mapaEdicao = MAPA_PADRAO;  // qual catálogo esta tela está editando
+        let refLugares = null;
+        let camadaMalha = null;
         let lugares = {};              // id -> registro, como está no banco
         let editando = null;           // id em edição, ou null para um novo
         let coordEditada = null;       // {lat, lon} escolhida no mapa
@@ -142,8 +154,15 @@
             document.getElementById('st').innerText = "CONECTADO";
             document.getElementById('status-dot').style.background = "var(--neon-blue)";
 
-            iniciarMapa();
-            ouvirLugares();
+            // Começa editando o mapa que está montado na máquina — é o que
+            // quem abre esta tela quase sempre quer mexer.
+            database.ref('maquina/mapaAtivo').once('value').then(snap => {
+                if (MAPAS[snap.val()]) mapaEdicao = snap.val();
+            }).catch(() => {}).then(() => {
+                renderSeletorCatalogo();
+                iniciarMapa();
+                ouvirLugares();
+            });
         }
 
         function erroFirebase(err) {
@@ -163,27 +182,12 @@
 
         // ============ MAPA ============
         function iniciarMapa() {
-            const def = MAPAS[MAPA_PADRAO];
+            const def = MAPAS[mapaEdicao];
             mapa = L.map('mapa-lugares').setView(def.centro, def.zoom);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19, attribution: '&copy; OpenStreetMap'
             }).addTo(mapa);
-
-            fetch(def.malha)
-                .then(r => r.json())
-                .then(geo => {
-                    const c = L.geoJSON(geo, {
-                        style: { color: '#00d4ff', weight: 2, fillOpacity: .05 },
-                        interactive: false
-                    }).addTo(mapa);
-                    // O contêiner só ganha tamanho depois do login. Se o fetch
-                    // voltar antes disso, o Leaflet ainda acha que a área é
-                    // zero e o fitBounds enquadra meio estado em vez do
-                    // município — foi o que aconteceu.
-                    mapa.invalidateSize();
-                    mapa.fitBounds(c.getBounds(), { padding: [20, 20] });
-                })
-                .catch(() => {});
+            carregarMalha(mapaEdicao);
 
             mapa.on('click', e => {
                 coordEditada = { lat: e.latlng.lat, lon: e.latlng.lng };
@@ -195,6 +199,27 @@
             });
 
             setTimeout(() => mapa.invalidateSize(), 100);
+        }
+
+        function carregarMalha(idMapa) {
+            const def = MAPAS[idMapa];
+            if (!def) return;
+            if (camadaMalha) { mapa.removeLayer(camadaMalha); camadaMalha = null; }
+            fetch(def.malha)
+                .then(r => r.json())
+                .then(geo => {
+                    camadaMalha = L.geoJSON(geo, {
+                        style: { color: '#00d4ff', weight: 2, fillOpacity: .05 },
+                        interactive: false
+                    }).addTo(mapa);
+                    // O contêiner só ganha tamanho depois do login. Se o fetch
+                    // voltar antes disso, o Leaflet ainda acha que a área é
+                    // zero e o fitBounds enquadra meio estado em vez do
+                    // município — foi o que aconteceu.
+                    mapa.invalidateSize();
+                    mapa.fitBounds(camadaMalha.getBounds(), { padding: [20, 20] });
+                })
+                .catch(() => mapa.setView(def.centro, def.zoom));
         }
 
         function pino(classe) {
@@ -222,25 +247,85 @@
         }
 
         // ============ FIREBASE ============
+        function renderSeletorCatalogo() {
+            const sel = document.getElementById('seletor-catalogo');
+            sel.innerHTML = Object.keys(MAPAS)
+                .map(id => '<option value="' + id + '">' + esc(MAPAS[id].nome) + '</option>').join('');
+            sel.value = mapaEdicao;
+        }
+
+        function trocarCatalogo(idMapa) {
+            if (!MAPAS[idMapa] || idMapa === mapaEdicao) return;
+            mapaEdicao = idMapa;
+            renderSeletorCatalogo();   // mantém o campo igual ao estado real
+            cancelar();
+            lugares = {};
+            renderLista();
+            desenharTodos();
+            carregarMalha(mapaEdicao);
+            ouvirLugares();
+        }
+
         function ouvirLugares() {
-            database.ref('maquina/lugares').on('value', snap => {
+            if (refLugares) refLugares.off();
+            refLugares = database.ref(caminhoLugares(mapaEdicao));
+            refLugares.on('value', snap => {
                 lugares = snap.val() || {};
                 renderLista();
                 desenharTodos();
                 const n = Object.keys(lugares).length;
+                const semente = sementeDoMapa(mapaEdicao).length;
                 document.getElementById('contagem').innerText = n
-                    ? n + ' lugares no banco — é isto que a tela pública mostra.'
-                    : 'Banco vazio. A tela pública está mostrando a semente do arquivo.';
+                    ? n + ' lugares no banco — é isto que a tela pública mostra neste mapa.'
+                    : 'Banco vazio neste mapa. A tela pública está mostrando a semente do ' +
+                      'arquivo (' + semente + ' lugares).';
             }, erroFirebase);
+
+            // O catálogo de Ponta Grossa nasceu em maquina/lugares, antes de
+            // existir mapa nenhum. Se aquele nó ainda tem coisa e o novo está
+            // vazio, avisa: é um clique para mover, e sem isso o que já está
+            // cadastrado parece ter sumido.
+            if (ehMapaAntigo(mapaEdicao)) verificarCatalogoAntigo();
+        }
+
+        function verificarCatalogoAntigo() {
+            database.ref(CAMINHO_LUGARES_ANTIGO).once('value').then(snap => {
+                const antigos = snap.val() || {};
+                const quantos = Object.keys(antigos).length;
+                const aviso = document.getElementById('aviso-migracao');
+                if (!quantos || Object.keys(lugares).length) {
+                    aviso.style.display = 'none';
+                    return;
+                }
+                aviso.style.display = 'block';
+                aviso.innerHTML = '<b>' + quantos + ' lugares no caminho antigo</b> ' +
+                    '(maquina/lugares). Eles ainda aparecem na tela pública, mas só para ' +
+                    'Ponta Grossa. <button class="btn btn-mini" onclick="migrarCatalogoAntigo()">' +
+                    'Copiar para este mapa</button>';
+            }).catch(erroFirebase);
+        }
+
+        function migrarCatalogoAntigo() {
+            database.ref(CAMINHO_LUGARES_ANTIGO).once('value').then(snap => {
+                const antigos = snap.val() || {};
+                if (!Object.keys(antigos).length) return;
+                if (!confirm('Copiar ' + Object.keys(antigos).length + ' lugares de ' +
+                             'maquina/lugares para ' + caminhoLugares(mapaEdicao) + '?\n\n' +
+                             'O nó antigo não é apagado — dá para conferir antes e remover depois.')) return;
+                database.ref(caminhoLugares(mapaEdicao)).update(antigos)
+                    .then(() => alert('Copiado.'))
+                    .catch(erroFirebase);
+            }).catch(erroFirebase);
         }
 
         // Grava a semente só no que ainda não existe: rodar de novo não
         // desfaz edição nenhuma feita pelo caminho.
         function semear() {
             if (!database) return;
-            const novos = LUGARES_SEMENTE.filter(l => !lugares[l.id]);
+            const semente = sementeDoMapa(mapaEdicao);
+            const novos = semente.filter(l => !lugares[l.id]);
             if (!novos.length) {
-                alert("Todos os " + LUGARES_SEMENTE.length + " lugares da semente já estão no banco.\n\n" +
+                alert("Todos os " + semente.length + " lugares da semente já estão no banco.\n\n" +
                       "Nada a fazer.");
                 return;
             }
@@ -256,8 +341,11 @@
                     destaque: !!l.destaque
                 };
                 if (l.fonte) lote[l.id].fonte = l.fonte;
+                if (l.municipio) lote[l.id].municipio = l.municipio;
+                if (l.fotoRegiao) lote[l.id].fotoRegiao = true;
+                if (l.fonteFoto) lote[l.id].fonteFoto = l.fonteFoto;
             });
-            database.ref('maquina/lugares').update(lote)
+            database.ref(caminhoLugares(mapaEdicao)).update(lote)
                 .then(() => alert(novos.length + " lugares gravados."))
                 .catch(erroFirebase);
         }
@@ -414,7 +502,7 @@
                     return;
             }
 
-            database.ref('maquina/lugares/' + id).set(registro)
+            database.ref(caminhoLugares(mapaEdicao) + '/' + id).set(registro)
                 .then(() => {
                     editando = id;
                     document.getElementById('st').innerText = "SALVO: " + nome.toUpperCase();
@@ -427,7 +515,7 @@
             if (!database || !editando) return;
             const l = lugares[editando];
             if (!confirm("Apagar \"" + (l ? l.nome : editando) + "\" do catálogo público?")) return;
-            database.ref('maquina/lugares/' + editando).remove()
+            database.ref(caminhoLugares(mapaEdicao) + '/' + editando).remove()
                 .then(cancelar)
                 .catch(erroFirebase);
         }

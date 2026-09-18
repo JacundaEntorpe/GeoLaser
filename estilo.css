@@ -524,3 +524,17 @@ label.campo {
     stroke-linejoin: round;
     filter: drop-shadow(0 0 4px rgba(0, 255, 136, 0.5));
 }
+
+/* O mapa montado deixou de ser rótulo e virou seletor: trocar o mapa físico
+   é uma ação de operação, e o painel é onde a máquina é operada. */
+.mapa-ativo-tag select {
+    background: transparent;
+    border: 1px solid var(--neon-blue);
+    border-radius: 4px;
+    color: var(--neon-blue);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+.mapa-ativo-tag select option { background: #10131a; color: #e6edf3; }

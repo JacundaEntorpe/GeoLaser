@@ -30,27 +30,105 @@ const firebaseConfig = {
 // montado na máquina, no formato que ele exige: oeste, norte, leste, sul.
 // Sem esse cerco, buscar "Catedral" traria uma catedral de outro estado —
 // um lugar para o qual a máquina não teria como apontar.
+//
+// `curto` é o rótulo do seletor de mapa, que fica num botão estreito.
+// `contextoBusca` é a cauda que vai junto na segunda tentativa de busca
+// externa: procurar "Rua Balduíno Taques" sozinho no Nominatim devolve ruas
+// de todo o Brasil, e com ", Ponta Grossa, Paraná" devolve a certa.
+// `buscaPlaceholder` é o texto do campo — dizer "de Ponta Grossa" num mapa do
+// estado faz o visitante achar que não pode procurar Curitiba.
 const MAPAS = {
     'ponta-grossa': {
         nome: 'Ponta Grossa / PR',
+        curto: 'Ponta Grossa',
         malha: '/malhas/ponta-grossa.geojson',
         centro: [-25.1392, -50.0692],
         zoom: 10,
-        viewbox: [-50.4587, -24.8909, -49.6797, -25.3874]
+        viewbox: [-50.4587, -24.8909, -49.6797, -25.3874],
+        contextoBusca: 'Ponta Grossa, Paraná',
+        buscaPlaceholder: 'Buscar um lugar ou rua de Ponta Grossa…',
+        referencias: [
+            { nome: 'Catedral Sant\'Ana (centro)', lat: -25.098206, lon: -50.158952 },
+            { nome: 'Parque Estadual de Vila Velha', lat: -25.226822, lon: -49.987054 },
+            { nome: 'Represa dos Alagados', lat: -25.014901, lon: -50.033788 }
+        ]
     },
     'parana': {
         nome: 'Paraná (estado)',
+        curto: 'Paraná',
         malha: '/malhas/parana.geojson',
         centro: [-24.6167, -51.3217],
         zoom: 7,
-        viewbox: [-54.6200, -22.5164, -48.0231, -26.7166]
+        viewbox: [-54.6200, -22.5164, -48.0231, -26.7166],
+        contextoBusca: 'Paraná',
+        buscaPlaceholder: 'Buscar uma cidade ou lugar do Paraná…',
+        referencias: [
+            { nome: 'Curitiba', lat: -25.429722, lon: -49.271944 },
+            { nome: 'Foz do Iguaçu', lat: -25.540000, lon: -54.587500 },
+            { nome: 'Londrina', lat: -23.310000, lon: -51.162778 }
+        ]
     }
 };
 const MAPA_PADRAO = 'ponta-grossa';
 
+// `referencias` são sugestões de ponto para calibrar, e a escolha delas não é
+// arbitrária: a qualidade da calibração depende de os três pontos formarem um
+// triângulo GRANDE. Dois pontos próximos fazem a escala ser deduzida de uma
+// medida curta, e aí cada passo de erro na mira vira dezenas de passos de erro
+// na outra ponta da mesa — foi assim que um destino virou Y=192780.
+//   - Ponta Grossa: centro (norte), Vila Velha (sul), Alagados (noroeste);
+//   - Paraná: Curitiba (leste), Foz (oeste, quase na mesma latitude — é o que
+//     fixa a escala de X) e Londrina (norte, que fixa a de Y).
+// São sugestões: o que vale é o ponto que dá para identificar no mapa de papel
+// que está montado. Se o mapa impresso não mostra Vila Velha, use outro.
+
 // Caminho raiz de tudo que pertence a um mapa específico.
 function caminhoMapa(idMapa) {
     return 'maquina/mapas/' + (idMapa || MAPA_PADRAO);
+}
+
+// Catálogo de lugares do mapa. Antes de existir mais de um mapa os lugares
+// moravam num nó só, maquina/lugares, e aquele nó É o catálogo de Ponta
+// Grossa — foi com ele que a máquina rodou. As telas leem o caminho novo e
+// caem no antigo quando ele está vazio, para o que já está no banco não
+// sumir da tela enquanto ninguém migra.
+function caminhoLugares(idMapa) {
+    return caminhoMapa(idMapa) + '/lugares';
+}
+const CAMINHO_LUGARES_ANTIGO = 'maquina/lugares';
+
+function ehMapaAntigo(idMapa) {
+    return (idMapa || MAPA_PADRAO) === 'ponta-grossa';
+}
+
+// Semente do mapa, para quando o Firebase ainda não tem nada. Os arquivos
+// lugares.js e lugares-parana.js se registram em CATALOGOS.
+//
+// A passada de deduplicação não é enfeite: a primeira versão do catálogo do
+// Paraná tinha 100 LINHAS de município que eram 13 cidades repetidas, porque a
+// consulta ao Wikidata trouxe uma linha por censo e ninguém agrupou. O banco
+// esconde o erro (id repetido vira uma chave só) mas a semente não, e a tela
+// pública mostrou São José dos Pinhais vinte vezes seguidas. Sai caro de ver e
+// é barato de evitar aqui, no único ponto por onde toda semente passa.
+function sementeDoMapa(idMapa) {
+    const c = (typeof CATALOGOS !== 'undefined' && CATALOGOS) || {};
+    const lista = c[idMapa] || c[MAPA_PADRAO] || [];
+
+    const vistos = {};
+    const unicos = [];
+    let repetidos = 0;
+    for (let i = 0; i < lista.length; i++) {
+        const l = lista[i];
+        if (!l || !l.id) continue;
+        if (vistos[l.id]) { repetidos++; continue; }
+        vistos[l.id] = true;
+        unicos.push(l);
+    }
+    if (repetidos) {
+        console.warn('Semente de "' + idMapa + '" tem ' + repetidos +
+                     ' lugares com id repetido; foram descartados.');
+    }
+    return unicos;
 }
 
 // ---------- LIMITES FÍSICOS DA MESA (em passos) ----------
