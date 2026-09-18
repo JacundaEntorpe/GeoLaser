@@ -5,13 +5,41 @@
     <!-- user-scalable=no: o tablet fica fixo ao lado da máquina e um
          pinch acidental deixaria a interface torta para o próximo visitante. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#1d5138">
+    <meta name="theme-color" content="#ffffff">
     <title>GeoLaser</title>
-    <link href="https://fonts.googleapis.com/css2?family=Bitter:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet" href="estilo-eco.css">
 </head>
 <body>
+    <!-- ============ TELA DE ATRAÇÃO ============
+         Capa que cobre o totem quando ninguém está usando. Nasce visível: se
+         a página acabou de carregar, é porque a máquina foi ligada ou
+         reiniciada, e nesse momento não há visitante no meio de nada. Um
+         toque em qualquer lugar a dispensa. -->
+    <div class="atracao" id="atracao">
+        <div class="atracao-foto" id="atracao-foto" aria-hidden="true"></div>
+        <span class="atracao-legenda" id="atracao-legenda"></span>
+        <div class="atracao-corpo">
+            <span class="atracao-marca">GEO<span>LASER</span></span>
+            <h1 id="atracao-titulo">Escolha um lugar.<br>O laser mostra onde ele fica.</h1>
+            <p>Toque num destaque da lista ou em qualquer ponto do mapa: a máquina
+               move os dois eixos e acende o ponto no mapa de papel ao lado.</p>
+            <button class="cta" id="atracao-comecar">
+                Começar a explorar
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M5 12h13M12 5l7 7-7 7"></path>
+                </svg>
+            </button>
+            <div class="atracao-numeros">
+                <div><b id="atracao-qtd">—</b> lugares no catálogo</div>
+                <div><b id="atracao-mapa">—</b> montado na máquina</div>
+                <div><b>Tempo real</b> — tela e máquina juntas</div>
+            </div>
+        </div>
+    </div>
+
     <header class="topo">
         <div class="marca">
             GEO<span>LASER</span>
@@ -196,6 +224,10 @@
                 doubleClickZoom: false
             }).setView(def.centro, def.zoom);
 
+            // Continua sendo o tile padrão do OpenStreetMap; quem escurece é
+            // o CSS (.leaflet-tile-pane, em estilo-eco.css). As bases escuras
+            // prontas — CARTO, Stadia — hoje exigem chave de API, e um totem
+            // que depende de chave é um totem que um dia amanhece sem mapa.
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 18
             }).addTo(mapa);
@@ -360,19 +392,31 @@
             const lista = listaVisivel();
             alvo.innerHTML = lista.map(l => {
                 const foto = primeiraFoto(l);
-                const estilo = !foto
+                const cat = categoriaDe(l);
+                // --cor-cat vai para o CSS pintar o ícone da categoria dentro
+                // da pastilha branca, no canto da foto.
+                const estilo = '--cor-cat:' + corDe(l) + ';' + (!foto
                     ? 'background:linear-gradient(150deg,' + corDe(l) + ',' + corDe(l) + 'cc)'
                     : l.simbolo
                         ? 'background:linear-gradient(150deg,' + corDe(l) + ',' + corDe(l) + 'cc);' +
                           'background-image:url(' + esc(foto) + ');background-size:contain;' +
                           'background-repeat:no-repeat;background-position:center'
-                        : 'background-image:linear-gradient(rgba(0,0,0,.06),rgba(0,0,0,.06)),url(' + esc(foto) + ')';
-                return '<button class="bloco' + (foto ? '' : ' sem-foto') + '" data-id="' + esc(l.id) + '" ' +
-                       'aria-pressed="' + (lugarAberto && lugarAberto.id === l.id) + '" style="' + estilo + '">' +
+                        : 'background-image:url(' + esc(foto) + ')');
+                // Foto em cima, nome e categoria em texto escuro embaixo. O nome
+                // sobre a foto exigia uma tarja preta para sobreviver a um céu
+                // claro, e a tarja comia justamente o terço de baixo da imagem.
+                return '<button class="bloco" data-id="' + esc(l.id) + '" ' +
+                       'aria-pressed="' + (lugarAberto && lugarAberto.id === l.id) + '">' +
+                       '<span class="bloco-foto' + (foto ? '' : ' sem-foto') + '" style="' + estilo + '">' +
                        svgIcone(l, 'marca-agua') +
                        (l.simbolo ? '<span class="selo-regiao">brasão</span>'
                                   : l.fotoRegiao ? '<span class="selo-regiao">foto da região</span>' : '') +
-                       '<span class="tarja">' + esc(l.nome) + '</span></button>';
+                       '</span>' +
+                       '<span class="bloco-corpo">' +
+                       '<span class="bloco-nome">' + esc(l.nome) + '</span>' +
+                       '<span class="bloco-meta"><i style="background:' + esc(corDe(l)) + '"></i>' +
+                       esc(cat ? cat.nome : 'No mapa') + '</span>' +
+                       '</span></button>';
             }).join('');
 
             alvo.querySelectorAll('.bloco').forEach(btn => {
@@ -828,6 +872,8 @@
             }
             renderFiltros();
             renderBlocos();
+            atualizarAtracao();
+            if (!document.getElementById('atracao').hidden) sortearFotoAtracao();
         }
 
         function ouvirLugares() {
@@ -883,6 +929,7 @@
                 renderFiltros();
                 renderBlocos();
             }
+            atualizarAtracao();
             ouvirCalibracao();
             ouvirLugares();
         }
@@ -922,6 +969,86 @@
             }, aoFalhar);
         }
 
+        // ============ TELA DE ATRAÇÃO ============
+        // Quanto tempo parado antes de o totem voltar à capa. Noventa
+        // segundos é mais que o dobro do que leva para ler uma ficha inteira,
+        // então não cobre ninguém no meio da leitura, e é curto o bastante
+        // para o próximo visitante não encontrar a tela do anterior.
+        const ESPERA_ATRACAO = 90000;
+        let tempoAtracao = null;
+
+        function atualizarAtracao() {
+            document.getElementById('atracao-mapa').innerText =
+                (MAPAS[mapaAtivo] || {}).curto || '';
+            document.getElementById('atracao-qtd').innerText = lugares.length;
+        }
+
+        // Sorteia a foto de fundo da capa entre os destaques que TÊM foto de
+        // paisagem. Brasão e bandeira ficam de fora: são desenhos chapados,
+        // que esticados na tela inteira viram um borrão colorido.
+        function sortearFotoAtracao() {
+            const candidatos = lugares.filter(l =>
+                !l.simbolo && primeiraFoto(l) && (l.destaque || lugares.length < 12));
+            const fundo = document.getElementById('atracao-foto');
+            const legenda = document.getElementById('atracao-legenda');
+            if (!candidatos.length) {
+                fundo.style.backgroundImage = '';
+                legenda.innerText = '';
+                return;
+            }
+            const l = candidatos[Math.floor(Math.random() * candidatos.length)];
+            fundo.style.backgroundImage = 'url(' + primeiraFoto(l) + ')';
+            legenda.innerText = l.nome + (l.fotoRegiao ? ' (região)' : '') +
+                                ' · Foto: Wikimedia Commons';
+        }
+
+        function mostrarAtracao() {
+            const el = document.getElementById('atracao');
+            if (!el.hidden) return;
+            // Voltar ao começo faz parte de mostrar a capa: quem chegar depois
+            // não deve encontrar a ficha aberta nem a busca pela metade do
+            // visitante anterior.
+            limparBusca();
+            if (lugarAberto) fecharLugar();
+            categoriaFiltro = null;
+            renderFiltros();
+            renderBlocos();
+            document.getElementById('blocos').scrollTop = 0;
+            atualizarAtracao();
+            sortearFotoAtracao();
+            el.hidden = false;
+        }
+
+        function esconderAtracao() {
+            const el = document.getElementById('atracao');
+            if (el.hidden) return;
+            el.hidden = true;
+            // O mapa ficou embaixo de uma camada opaca enquanto a capa estava
+            // aberta; se a tela girou nesse meio tempo o Leaflet não percebeu.
+            if (mapa) mapa.invalidateSize();
+        }
+
+        function adiarAtracao() {
+            clearTimeout(tempoAtracao);
+            tempoAtracao = setTimeout(mostrarAtracao, ESPERA_ATRACAO);
+        }
+
+        // O toque que dispensa a capa é engolido de propósito: sem o
+        // stopPropagation ele atravessaria para o mapa que está embaixo e o
+        // primeiro contato do visitante com a máquina seria um disparo do
+        // laser para um ponto qualquer, sem ele ter pedido nada.
+        document.addEventListener('click', e => {
+            if (!document.getElementById('atracao').hidden) {
+                e.stopPropagation();
+                e.preventDefault();
+                esconderAtracao();
+            }
+            adiarAtracao();
+        }, true);
+        document.addEventListener('keydown', () => { esconderAtracao(); adiarAtracao(); }, true);
+        ['pointerdown', 'touchstart', 'wheel'].forEach(ev =>
+            document.addEventListener(ev, adiarAtracao, { passive: true, capture: true }));
+
         // ============ INÍCIO ============
         document.getElementById('campo-busca').addEventListener('input', aoDigitar);
         document.getElementById('campo-busca').addEventListener('focus', aoDigitar);
@@ -943,6 +1070,9 @@
             (MAPAS[mapaAtivo] || {}).buscaPlaceholder || 'Buscar um lugar…';
         renderFiltros();
         renderBlocos();
+        atualizarAtracao();
+        sortearFotoAtracao();
+        adiarAtracao();
         iniciarFirebase();
     </script>
 </body>

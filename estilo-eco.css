@@ -1,35 +1,57 @@
 /* ============================================================
    GeoLaser — tema da tela pública (index.html)
 
-   Nada aqui é compartilhado com estilo.css: aquele é o tema escuro
-   das telas internas de /dev, este é a interface do visitante, feita
-   para um tablet ao lado da máquina. Duas folhas separadas de
-   propósito — mexer no radar não pode mudar a cara pública.
+   Nada aqui é compartilhado com estilo.css: aquele é o tema das telas
+   internas de /dev, este é a interface do visitante, feita para um
+   tablet ao lado da máquina. Duas folhas separadas de propósito —
+   mexer no radar não pode mudar a cara pública.
 
-   Regras que guiaram o desenho:
-   - alvo de toque nunca menor que 56px, porque o dedo não é o mouse;
-   - contraste alto: o tablet fica sob luz de ambiente, não em um
-     quarto escuro como o painel de operação;
-   - nada de hover como única pista visual — em touch não existe hover.
+   Linguagem visual, na linha do AllTrails: fundo claro, superfícies
+   BRANCAS E OPACAS separadas por uma linha de 1px, verde de marca
+   reservado para ação, foto grande em cada cartão e o nome sempre
+   em texto escuro embaixo da foto — nunca por cima dela.
+
+   Duas regras que valem para tudo abaixo:
+   - nada de transparência nem desfoque nas superfícies. Além de custar
+     caro no tablet, vidro sobre um mapa colorido muda de contraste
+     conforme a região do mapa que está embaixo: o mesmo texto lê bem
+     em cima da mata e some em cima da cidade;
+   - alvo de toque nunca menor que 56px, e nada de hover como única
+     pista visual — em touch não existe hover.
    ============================================================ */
 
 :root {
-    --mata: #1d5138;
-    --mata-fundo: #16402c;
-    --verde: #2f7d4f;
-    --verde-claro: #6fae7f;
-    --areia: #f4efe3;
-    --areia-2: #e7ddc9;
-    --papel: #fffdf7;
-    --texto: #26302a;
-    --texto-suave: #6d7a6f;
-    --terra: #a3703c;
+    /* ----- superfícies ----- */
+    --fundo: #f1f0ec;          /* a mesa, atrás dos painéis */
+    --branco: #ffffff;         /* os painéis */
+    --cinza: #f5f5f3;          /* campo de busca, estados neutros */
+    --linha: #e0dfda;          /* a separação de 1px, no lugar da sombra */
+    --linha-forte: #c9c8c2;
+
+    /* ----- marca ----- */
+    --verde: #428a13;
+    --verde-escuro: #2f6a09;
+    --verde-lavado: #eef5e6;
+
+    /* ----- sinalização ----- */
     --laser: #d93b1f;
-    --sombra: 0 2px 6px rgba(30, 45, 35, .08), 0 12px 28px rgba(30, 45, 35, .10);
-    --sombra-forte: 0 4px 10px rgba(30, 45, 35, .14), 0 18px 40px rgba(30, 45, 35, .16);
-    --raio: 18px;
+    --laser-lavado: #fdeeeb;
+    --ambar: #c07a10;
+    --ambar-lavado: #fdf4e3;
+
+    /* ----- texto ----- */
+    --texto: #1b1b19;
+    --texto-suave: #5e5e58;
+    --texto-fraco: #8a8a82;
+
+    --sombra: 0 1px 2px rgba(27, 27, 25, .05), 0 4px 12px rgba(27, 27, 25, .06);
+    --sombra-forte: 0 2px 6px rgba(27, 27, 25, .10), 0 16px 32px rgba(27, 27, 25, .14);
+
+    --raio: 16px;
+    --raio-p: 12px;
+
     --fonte: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --fonte-titulo: 'Bitter', Georgia, serif;
+    --fonte-titulo: 'Manrope', 'Inter', -apple-system, sans-serif;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -38,7 +60,7 @@ html, body { height: 100%; }
 
 body {
     font-family: var(--fonte);
-    background: var(--areia);
+    background: var(--fundo);
     color: var(--texto);
     display: flex;
     flex-direction: column;
@@ -50,9 +72,12 @@ body {
 /* ---------- CABEÇALHO ---------- */
 .topo {
     flex: 0 0 auto;
-    background: var(--mata);
-    color: #f2f7f0;
-    padding: 14px 24px;
+    position: relative;
+    z-index: 10;
+    background: var(--branco);
+    border-bottom: 1px solid var(--linha);
+    padding: 0 22px;
+    height: 68px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -61,20 +86,21 @@ body {
 
 .marca {
     font-family: var(--fonte-titulo);
-    font-size: 26px;
-    font-weight: 700;
-    letter-spacing: .5px;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -.6px;
     line-height: 1;
+    color: var(--texto);
 }
-.marca span { color: var(--verde-claro); }
+.marca span { color: var(--verde); }
 .marca small {
     display: block;
     font-family: var(--fonte);
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.4px;
     text-transform: uppercase;
-    color: #a9c9b2;
+    color: var(--texto-fraco);
     margin-top: 5px;
 }
 
@@ -83,66 +109,91 @@ body {
     align-items: center;
     gap: 9px;
     font-size: 13px;
-    font-weight: 500;
-    color: #cfe3d4;
-    background: rgba(255, 255, 255, .08);
+    font-weight: 600;
+    color: var(--texto-suave);
+    background: var(--cinza);
+    border: 1px solid var(--linha);
     padding: 9px 16px;
     border-radius: 999px;
     text-align: right;
 }
 .ponto-estado {
-    width: 9px; height: 9px;
+    width: 8px; height: 8px;
     border-radius: 50%;
-    background: var(--verde-claro);
+    background: var(--verde);
     flex: 0 0 auto;
 }
-.estado.ligando  .ponto-estado { background: #d8c56a; }
+.estado.ligando  .ponto-estado { background: var(--ambar); }
 .estado.problema .ponto-estado { background: var(--laser); }
 
 /* ---------- PALCO ---------- */
+/* A lista vem PRIMEIRO, à esquerda, e o mapa ocupa o resto — é a leitura
+   do explorador do AllTrails, e faz sentido aqui: o visitante decide na
+   lista e confirma no mapa, não o contrário. No HTML o mapa continua
+   vindo antes, porque é ele o assunto da página; quem troca é o `order`. */
 .palco {
     flex: 1 1 auto;
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(390px, .85fr);
-    gap: 18px;
-    padding: 18px;
+    grid-template-columns: minmax(380px, .82fr) minmax(0, 1.18fr);
+    gap: 16px;
+    padding: 16px;
     min-height: 0;                 /* deixa os filhos encolherem e rolarem */
 }
 
 /* ---------- MAPA ---------- */
 .mapa-caixa {
     position: relative;
-    background: var(--papel);
+    /* Os painéis do Leaflet chegam a z-index 700. Sem um contexto de
+       empilhamento próprio aqui, eles disputam com o cabeçalho e com a
+       tela de atração no nível da raiz — e ganham. */
+    z-index: 0;
+    background: var(--branco);
+    border: 1px solid var(--linha);
     border-radius: var(--raio);
     box-shadow: var(--sombra);
     overflow: hidden;
     min-height: 0;
 }
-#mapa { width: 100%; height: 100%; background: var(--areia-2); }
+#mapa { width: 100%; height: 100%; background: #e8e6e0; }
 
 /* O Leaflet injeta a própria tipografia; alinha com a da página. */
 .leaflet-container { font-family: var(--fonte); }
+.leaflet-control-zoom a {
+    background: var(--branco) !important;
+    color: var(--texto) !important;
+    border-color: var(--linha) !important;
+    font-weight: 600;
+}
+.leaflet-control-zoom a:hover { background: var(--cinza) !important; }
+.leaflet-tooltip {
+    background: var(--branco);
+    border: 1px solid var(--linha);
+    color: var(--texto);
+    box-shadow: var(--sombra);
+    font-weight: 600;
+}
+.leaflet-tooltip-top::before { border-top-color: var(--branco); }
 
 .legenda {
     position: absolute;
     left: 14px; bottom: 14px;
     z-index: 500;
-    background: rgba(255, 253, 247, .94);
-    backdrop-filter: blur(4px);
-    border-radius: 12px;
-    padding: 10px 14px;
+    background: var(--branco);
+    border: 1px solid var(--linha);
+    border-radius: var(--raio-p);
+    padding: 11px 15px;
     box-shadow: var(--sombra);
     display: flex;
     gap: 18px;
     font-size: 12.5px;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--texto-suave);
 }
 .legenda i {
-    width: 11px; height: 11px;
+    width: 10px; height: 10px;
     border-radius: 50%;
     display: inline-block;
-    margin-right: 7px;
+    margin-right: 8px;
     vertical-align: -1px;
 }
 .legenda .i-laser   { background: var(--laser); }
@@ -179,7 +230,9 @@ body {
 
 /* ---------- LATERAL ---------- */
 .lateral {
-    background: var(--papel);
+    order: -1;                     /* a lista à esquerda; ver .palco */
+    background: var(--branco);
+    border: 1px solid var(--linha);
     border-radius: var(--raio);
     box-shadow: var(--sombra);
     display: flex;
@@ -199,22 +252,23 @@ body {
 /* ---------- BUSCA ---------- */
 .busca {
     flex: 0 0 auto;
-    padding: 18px 18px 12px;
+    padding: 16px 16px 12px;
     position: relative;
 }
 .campo-busca {
     display: flex;
     align-items: center;
     gap: 12px;
-    background: var(--areia);
-    border: 2px solid transparent;
-    border-radius: 14px;
-    padding: 0 16px;
-    transition: border-color .15s, background .15s;
+    background: var(--branco);
+    border: 1px solid var(--linha-forte);
+    border-radius: 999px;
+    padding: 0 18px;
+    box-shadow: var(--sombra);
+    transition: border-color .15s, box-shadow .15s;
 }
 .campo-busca:focus-within {
     border-color: var(--verde);
-    background: #fff;
+    box-shadow: 0 0 0 3px var(--verde-lavado);
 }
 .campo-busca svg { flex: 0 0 auto; color: var(--texto-suave); }
 .campo-busca input {
@@ -223,19 +277,20 @@ body {
     background: none;
     outline: none;
     font-family: inherit;
-    font-size: 17px;
+    font-size: 16px;
     color: var(--texto);
-    height: 58px;
+    height: 56px;
 }
-.campo-busca input::placeholder { color: #9aa79c; }
+.campo-busca input::placeholder { color: var(--texto-fraco); }
+.campo-busca input::-webkit-search-cancel-button { display: none; }
 .limpar-busca {
     flex: 0 0 auto;
-    width: 38px; height: 38px;
+    width: 36px; height: 36px;
     border: 0;
     border-radius: 50%;
-    background: var(--areia-2);
+    background: var(--cinza);
     color: var(--texto-suave);
-    font-size: 19px;
+    font-size: 17px;
     line-height: 1;
     cursor: pointer;
 }
@@ -245,10 +300,11 @@ body {
    tecla faria a lista inteira pular embaixo do dedo. */
 .sugestoes {
     position: absolute;
-    left: 18px; right: 18px; top: 82px;
+    left: 16px; right: 16px; top: 80px;
     z-index: 30;
-    background: #fff;
-    border-radius: 14px;
+    background: var(--branco);
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
     box-shadow: var(--sombra-forte);
     overflow: hidden auto;
     max-height: min(56vh, 460px);
@@ -262,7 +318,7 @@ body {
     width: 100%;
     padding: 12px 16px;
     border: 0;
-    border-bottom: 1px solid var(--areia);
+    border-bottom: 1px solid var(--linha);
     background: none;
     text-align: left;
     font-family: inherit;
@@ -272,18 +328,18 @@ body {
     min-height: 66px;
 }
 .sugestao:last-child { border-bottom: 0; }
-.sugestao:active { background: var(--areia); }
+.sugestao:active { background: var(--cinza); }
 .sugestao .miniatura {
     flex: 0 0 auto;
-    width: 46px; height: 46px;
-    border-radius: 11px;
+    width: 48px; height: 48px;
+    border-radius: 10px;
     background-size: cover;
     background-position: center;
     display: grid;
     place-items: center;
 }
 .sugestao .miniatura svg { width: 22px; height: 22px; color: #fff; opacity: .95; }
-.sugestao b { display: block; font-weight: 600; }
+.sugestao b { display: block; font-weight: 700; }
 .sugestao small {
     display: block;
     color: var(--texto-suave);
@@ -292,13 +348,14 @@ body {
 }
 
 .grupo-sugestao {
-    padding: 10px 16px 6px;
-    font-size: 11.5px;
+    padding: 11px 16px 7px;
+    font-size: 11px;
     font-weight: 700;
-    letter-spacing: 1.2px;
+    letter-spacing: 1.4px;
     text-transform: uppercase;
-    color: var(--texto-suave);
-    background: var(--areia);
+    color: var(--texto-fraco);
+    background: var(--cinza);
+    border-bottom: 1px solid var(--linha);
 }
 .sem-resultado {
     padding: 22px 18px;
@@ -306,105 +363,160 @@ body {
     font-size: 14.5px;
     line-height: 1.55;
 }
+.sem-resultado b { color: var(--texto); }
 
 /* ---------- FILTROS ---------- */
 .filtros {
     flex: 0 0 auto;
     display: flex;
-    gap: 9px;
-    padding: 4px 18px 14px;
+    gap: 8px;
+    padding: 2px 16px 14px;
     overflow-x: auto;
     scrollbar-width: none;
 }
 .filtros::-webkit-scrollbar { display: none; }
 .chip {
     flex: 0 0 auto;
-    border: 2px solid var(--areia-2);
-    background: none;
+    border: 1px solid var(--linha-forte);
+    background: var(--branco);
     border-radius: 999px;
-    padding: 0 18px;
-    height: 44px;
+    padding: 0 17px;
+    height: 42px;
     font-family: inherit;
     font-size: 14px;
     font-weight: 600;
-    color: var(--texto-suave);
+    color: var(--texto);
     cursor: pointer;
     white-space: nowrap;
+    transition: background .12s, border-color .12s, color .12s;
 }
 .chip[aria-pressed="true"] {
-    background: var(--mata);
-    border-color: var(--mata);
+    background: var(--verde);
+    border-color: var(--verde);
     color: #fff;
 }
 
-/* ---------- BLOCOS ---------- */
+/* ---------- CARTÕES DE LUGAR ---------- */
 .blocos {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
-    gap: 14px;
-    padding: 0 18px 18px;
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 16px;
+    padding: 2px 16px 18px;
     align-content: start;
 }
+.blocos::-webkit-scrollbar { width: 8px; }
+.blocos::-webkit-scrollbar-thumb { background: var(--linha-forte); border-radius: 999px; }
 
+/* O nome do lugar sai de cima da foto e vira texto escuro embaixo dela.
+   Legenda branca sobre foto só funciona quando a foto é escura, e metade
+   do catálogo é céu claro — era esse o motivo da tarja preta antiga. */
 .bloco {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+
+    /* Duas linhas que parecem enfeite e não são — as duas nasceram do mesmo
+       bug, a grade virando uma pilha de tiras de 16px com as fotos cortadas:
+
+       1) o cartão NÃO pode ter overflow:hidden. Como item de grade, um
+          scroll container passa a contribuir ZERO para a altura automática
+          da linha, e a linha encolhe até a altura de uma linha de texto. Os
+          cantos arredondados da foto são resolvidos no próprio .bloco-foto;
+       2) align-self: start, para o cartão não esticar até a altura da linha. */
+    align-self: start;
+    border: 1px solid var(--linha);
+    border-radius: var(--raio-p);
+    background: var(--branco);
+    box-shadow: var(--sombra);
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    padding: 0;
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.bloco:active { transform: scale(.98); }
+.bloco[aria-pressed="true"] {
+    border-color: var(--verde);
+    box-shadow: 0 0 0 2px var(--verde-lavado), var(--sombra);
+}
+
+.bloco-foto {
     position: relative;
     display: block;
     width: 100%;
-    border: 0;
-    border-radius: 15px;
-    overflow: hidden;
 
-    /* Proporção 4:3 por padding percentual, e NÃO por aspect-ratio.
-       Com a largura vindo de uma coluna 1fr, o aspect-ratio não entra no
-       cálculo da altura da linha da grade: as linhas colapsavam para ~55px
-       enquanto o botão desenhava 171px, e um bloco cobria o nome do outro.
-       O padding percentual resolve contra a largura da coluna, que já é
-       definida, então a linha nasce com a altura certa.
-       Ao mexer aqui, confira a grade com mais de uma linha. */
-    height: 0;
-    padding: 0 0 75%;
-    background: var(--verde);
+    /* Agora quem é item da grade é o CARTÃO, de altura automática, e a foto
+       é um bloco dentro dele com largura conhecida — aqui o aspect-ratio
+       funciona. (No desenho antigo o próprio botão era o item da grade e o
+       aspect-ratio não entrava no cálculo da altura da linha: as linhas
+       colapsavam e um bloco cobria o outro. Daí o padding percentual de
+       antes. Ao mexer aqui, confira a grade com mais de uma linha.) */
+    flex: 0 0 auto;
+    aspect-ratio: 4 / 3;
+    /* 1px a menos que o raio do cartão, senão a borda dele aparece como um
+       fio claro por fora da quina da foto. */
+    border-radius: 11px 11px 0 0;
+    background: var(--cinza);
     background-size: cover;
     background-position: center;
-    cursor: pointer;
-    box-shadow: var(--sombra);
-    text-align: left;
-    font-family: inherit;
-    transition: transform .12s ease;
 }
-.bloco:active { transform: scale(.97); }
-.bloco[aria-pressed="true"] { outline: 4px solid var(--verde); outline-offset: 2px; }
 
-/* Sem a tarja o nome branco some sobre a parte clara da foto. */
-.bloco .tarja {
-    position: absolute;
-    inset: auto 0 0 0;
-    padding: 26px 12px 11px;
-    background: linear-gradient(transparent, rgba(18, 32, 24, .88));
-    color: #fff;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.25;
+.bloco-corpo {
+    display: block;
+    padding: 11px 12px 13px;
 }
+.bloco-nome {
+    display: block;
+    font-family: var(--fonte-titulo);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -.2px;
+    color: var(--texto);
+}
+.bloco-meta {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 5px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--texto-suave);
+}
+.bloco-meta i {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+}
+
+/* O ícone da categoria numa pastilha branca, e não solto sobre a foto:
+   contorno branco sobre céu branco sumia em metade do catálogo. */
 .bloco .marca-agua {
     position: absolute;
     right: 8px; top: 8px;
-    width: 34px; height: 34px;
-    color: #fff;
-    opacity: .32;
+    width: 30px; height: 30px;
+    padding: 6px;
+    border-radius: 50%;
+    background: var(--branco);
+    color: var(--cor-cat, var(--verde));
+    box-shadow: var(--sombra);
 }
-.bloco.sem-foto .marca-agua {
+.bloco-foto.sem-foto .marca-agua {
     /* Sem fotografia o ícone deixa de ser enfeite e vira a ilustração
-       do bloco: é o que diferencia uma caverna de uma praça à distância. */
-    right: auto; top: auto;
-    left: 50%; top: 42%;
+       do cartão: é o que diferencia uma caverna de uma praça à distância. */
+    right: auto; top: 50%;
+    left: 50%;
     transform: translate(-50%, -50%);
     width: 52px; height: 52px;
-    opacity: .5;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    color: #fff;
+    opacity: .92;
 }
 
 /* ---------- FICHA DO LUGAR ---------- */
@@ -414,10 +526,12 @@ body {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
 }
+.ficha::-webkit-scrollbar { width: 8px; }
+.ficha::-webkit-scrollbar-thumb { background: var(--linha-forte); border-radius: 999px; }
 .ficha-topo {
     position: relative;
-    height: 230px;
-    background: var(--verde);
+    height: 232px;
+    background: var(--cinza);
     background-size: cover;
     background-position: center;
 }
@@ -427,7 +541,7 @@ body {
     transform: translate(-50%, -50%);
     width: 76px; height: 76px;
     color: #fff;
-    opacity: .45;
+    opacity: .5;
 }
 .voltar {
     position: absolute;
@@ -436,55 +550,58 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    height: 48px;
-    padding: 0 20px 0 16px;
-    border: 0;
+    height: 46px;
+    padding: 0 20px 0 15px;
+    border: 1px solid var(--linha);
     border-radius: 999px;
-    background: rgba(255, 253, 247, .95);
+    background: var(--branco);
     color: var(--texto);
     font-family: inherit;
     font-size: 15px;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     box-shadow: var(--sombra);
 }
 
-.ficha-corpo { padding: 20px 22px 26px; }
+.ficha-corpo { padding: 20px 20px 26px; }
 .etiqueta {
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    height: 30px;
-    padding: 0 13px;
+    height: 28px;
+    padding: 0 12px;
     border-radius: 999px;
-    font-size: 12.5px;
+    font-size: 11.5px;
     font-weight: 700;
-    letter-spacing: .4px;
+    letter-spacing: .6px;
     text-transform: uppercase;
     color: #fff;
 }
 .ficha-corpo h2 {
     font-family: var(--fonte-titulo);
-    font-size: 27px;
-    line-height: 1.2;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -.7px;
+    line-height: 1.16;
     margin: 12px 0 10px;
 }
 .ficha-corpo p {
     font-size: 16px;
     line-height: 1.62;
-    color: #3d4a40;
+    color: var(--texto-suave);
 }
 .coordenada {
     margin-top: 14px;
     font-size: 13px;
-    color: var(--texto-suave);
+    color: var(--texto-fraco);
     font-variant-numeric: tabular-nums;
 }
 .fonte-texto {
     display: inline-block;
-    margin-top: 16px;
-    font-size: 13px;
-    color: var(--verde);
+    margin-top: 14px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--verde-escuro);
     text-decoration: none;
     border-bottom: 1px solid currentColor;
 }
@@ -502,52 +619,37 @@ body {
 .galeria[hidden] { display: none; }
 .galeria img {
     flex: 0 0 auto;
-    width: 128px; height: 92px;
+    width: 132px; height: 94px;
     object-fit: cover;
-    border-radius: 11px;
-    box-shadow: var(--sombra);
+    border-radius: 10px;
+    border: 1px solid var(--linha);
 }
 
 /* ---------- ESTADO DO LASER ---------- */
 .status-laser {
     margin-top: 20px;
-    border-radius: 14px;
+    border-radius: var(--raio-p);
     padding: 15px 17px;
     font-size: 14.5px;
     line-height: 1.5;
-    background: var(--areia);
-    color: var(--texto);
-    border-left: 5px solid var(--verde);
+    background: var(--cinza);
+    border: 1px solid var(--linha);
+    border-left: 4px solid var(--linha-forte);
+    color: var(--texto-suave);
 }
-.status-laser b { display: block; font-size: 15.5px; margin-bottom: 3px; }
-.status-laser.indo    { border-left-color: var(--terra); background: #fbf3e6; }
-.status-laser.chegou  { border-left-color: var(--verde); background: #eaf5ec; }
-.status-laser.parado  { border-left-color: #b9c4bb; }
-.status-laser.problema{ border-left-color: var(--laser); background: #fdeeea; }
+.status-laser b { display: block; font-size: 15.5px; color: var(--texto); margin-bottom: 3px; }
+.status-laser.indo     { border-left-color: var(--ambar); background: var(--ambar-lavado); }
+.status-laser.chegou   { border-left-color: var(--verde); background: var(--verde-lavado); }
+.status-laser.parado   { border-left-color: var(--linha-forte); }
+.status-laser.problema { border-left-color: var(--laser); background: var(--laser-lavado); }
 
 /* ---------- RODAPÉ ---------- */
 .rodape {
     flex: 0 0 auto;
-    padding: 9px 24px 13px;
+    padding: 0 22px 12px;
     text-align: center;
     font-size: 11.5px;
-    color: var(--texto-suave);
-}
-
-/* ---------- TABLET EM PÉ ---------- */
-/* Em retrato a coluna dupla espremeria as duas metades; o mapa vira
-   uma faixa no topo e a lista ocupa o resto. */
-@media (max-width: 900px), (orientation: portrait) {
-    .palco {
-        grid-template-columns: 1fr;
-        grid-template-rows: minmax(240px, 38vh) minmax(0, 1fr);
-        gap: 14px;
-        padding: 14px;
-    }
-    .marca { font-size: 22px; }
-    .estado { font-size: 12px; padding: 8px 13px; }
-    .blocos { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
-    .ficha-topo { height: 190px; }
+    color: var(--texto-fraco);
 }
 
 /* ---------- SELETOR DE MAPA (cabeçalho) ---------- */
@@ -556,30 +658,31 @@ body {
    não o lugar que o visitante escolheu. */
 .seletor-mapa {
     display: flex;
-    gap: 4px;
+    gap: 3px;
     margin-left: auto;
-    background: rgba(255, 255, 255, .08);
-    padding: 4px;
+    background: var(--cinza);
+    border: 1px solid var(--linha);
+    padding: 3px;
     border-radius: 999px;
 }
 .chip-mapa {
     appearance: none;
     border: 0;
     background: transparent;
-    color: #cfe3d4;
+    color: var(--texto-suave);
     font-family: inherit;
     font-size: 13px;
     font-weight: 600;
-    padding: 7px 15px;
+    padding: 9px 16px;
     border-radius: 999px;
     cursor: pointer;
     white-space: nowrap;
     transition: background .15s, color .15s;
 }
-.chip-mapa:hover { color: #fff; }
+.chip-mapa:hover { color: var(--texto); }
 .chip-mapa[aria-pressed="true"] {
-    background: var(--verde-claro);
-    color: #14301f;
+    background: var(--verde);
+    color: #fff;
 }
 
 /* ---------- CRÉDITO DA FOTO ---------- */
@@ -591,35 +694,26 @@ body {
     z-index: 4;
     max-width: calc(100% - 20px);
     font-size: 11px;
-    font-weight: 500;
-    letter-spacing: .3px;
-    color: #f2f7f0;
-    background: rgba(20, 35, 25, .62);
+    font-weight: 600;
+    color: #fff;
+    background: #26261f;
     padding: 4px 10px;
     border-radius: 999px;
     text-decoration: none;
-    backdrop-filter: blur(2px);
 }
-.credito-foto:hover { background: rgba(20, 35, 25, .82); }
 
 .bloco .selo-regiao {
     position: absolute;
-    right: 8px; top: 8px;
+    left: 8px; top: 8px;
     z-index: 3;
     font-size: 10px;
-    font-weight: 600;
-    letter-spacing: .3px;
-    color: #f2f7f0;
-    background: rgba(20, 35, 25, .55);
-    padding: 3px 8px;
+    font-weight: 700;
+    letter-spacing: .2px;
+    color: var(--texto);
+    background: var(--branco);
+    padding: 4px 9px;
     border-radius: 999px;
-}
-
-/* Num tablet em pé o cabeçalho fica apertado: o seletor desce para a linha
-   de baixo em vez de espremer a marca. */
-@media (max-width: 700px) {
-    .topo { flex-wrap: wrap; }
-    .seletor-mapa { order: 3; width: 100%; margin-left: 0; justify-content: center; }
+    box-shadow: var(--sombra);
 }
 
 /* ---------- DICA DE TOQUE NO MAPA ---------- */
@@ -627,10 +721,166 @@ body {
    função existe e ninguém usa. Fica na legenda, separada por um traço, para
    não virar mais um item da lista de cores. */
 .legenda .dica-mapa {
-    border-left: 1px solid var(--areia-2);
+    border-left: 1px solid var(--linha);
     padding-left: 18px;
-    color: var(--verde);
+    color: var(--verde-escuro);
+    font-weight: 700;
+}
+
+/* ============================================================
+   TELA DE ATRAÇÃO
+   O totem passa a maior parte do dia sem ninguém na frente. Parado no
+   mapa, ele parece uma tela travada; com esta capa ele anuncia o que a
+   máquina faz e convida ao toque. Some no primeiro toque em qualquer
+   lugar e volta sozinha depois de ESPERA_ATRACAO sem interação.
+
+   A foto de fundo é de um lugar do próprio catálogo, sorteada a cada
+   exibição: é a mesma ideia do herói do AllTrails, e aqui ela ainda
+   mostra ao visitante o tipo de coisa que a máquina sabe apontar.
+   ============================================================ */
+.atracao {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 0;
+    background: #26261f;
+    cursor: pointer;
+    overflow: hidden;
+}
+.atracao[hidden] { display: none; }
+
+.atracao-foto {
+    position: absolute;
+    inset: 0;
+    background-color: #26261f;
+    background-size: cover;
+    background-position: center;
+}
+/* O véu é o que garante o contraste do texto: a foto sorteada tanto pode
+   ser uma gruta escura quanto um campo ao meio-dia, e sem ele o título
+   ficaria ilegível justamente nas fotos bonitas. */
+.atracao-foto::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(12, 12, 10, .92) 0%, rgba(12, 12, 10, .70) 42%, rgba(12, 12, 10, .30) 100%);
+}
+
+.atracao-corpo {
+    position: relative;
+    padding: 0 6vw 7vh;
+    max-width: 980px;
+    color: #fff;
+}
+.atracao-marca {
+    display: inline-block;
+    font-family: var(--fonte-titulo);
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 2.6px;
+    text-transform: uppercase;
+    color: #fff;
+}
+.atracao-marca span { color: #9ed46b; }
+
+.atracao h1 {
+    font-family: var(--fonte-titulo);
+    /* clamp em vez de media query: o totem pode ser um tablet de 10" ou uma
+       TV, e o título precisa ocupar a mesma fração da tela nos dois. */
+    font-size: clamp(34px, 5.6vw, 68px);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -.03em;
+    margin: 16px 0 0;
+    text-shadow: 0 2px 20px rgba(0, 0, 0, .35);
+}
+.atracao p {
+    margin-top: 16px;
+    max-width: 560px;
+    font-size: clamp(15px, 1.6vw, 18px);
+    line-height: 1.55;
+    color: #e6e5df;
+}
+
+.cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 28px;
+    height: 62px;
+    padding: 0 32px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--verde);
+    color: #fff;
+    font-family: var(--fonte-titulo);
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -.1px;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+}
+.cta svg { width: 20px; height: 20px; }
+
+/* Três fatos em pastilhas brancas: é o que responde "o que essa máquina
+   faz?" antes de o visitante tocar em nada. */
+.atracao-numeros {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 26px;
+}
+.atracao-numeros div {
+    background: var(--branco);
+    border-radius: 999px;
+    padding: 10px 18px;
+    color: var(--texto);
+    font-size: 13.5px;
     font-weight: 600;
+}
+.atracao-numeros b { font-family: var(--fonte-titulo); font-weight: 800; }
+
+/* De onde veio a foto do fundo. Mesmo motivo do crédito da ficha: a tela
+   não pode exibir foto do Commons sem dizer de quem é. */
+.atracao-legenda {
+    position: absolute;
+    right: 14px; top: 14px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #fff;
+    background: #26261f;
+    padding: 6px 13px;
+    border-radius: 999px;
+}
+.atracao-legenda:empty { display: none; }
+
+/* ---------- TABLET EM PÉ ---------- */
+/* Em retrato a coluna dupla espremeria as duas metades; o mapa vira
+   uma faixa no topo e a lista ocupa o resto — e aí o `order` que joga a
+   lista para a esquerda em paisagem precisa sair do caminho. */
+@media (max-width: 900px), (orientation: portrait) {
+    .palco {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(230px, 34vh) minmax(0, 1fr);
+        gap: 12px;
+        padding: 12px;
+    }
+    .lateral { order: 0; }
+    .marca { font-size: 21px; }
+    .estado { font-size: 12px; padding: 8px 13px; }
+    .blocos { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    .ficha-topo { height: 196px; }
+    .atracao-corpo { padding: 0 7vw 6vh; }
+}
+
+/* Num tablet em pé o cabeçalho fica apertado: o seletor desce para a linha
+   de baixo em vez de espremer a marca. */
+@media (max-width: 700px) {
+    .topo { flex-wrap: wrap; height: auto; padding: 12px 16px; }
+    .seletor-mapa { order: 3; width: 100%; margin-left: 0; justify-content: center; }
 }
 
 /* Num tablet estreito a legenda ocupa a largura toda e a dica desce sozinha
